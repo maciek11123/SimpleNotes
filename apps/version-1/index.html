@@ -46,12 +46,23 @@
     </div>
 
     <!-- Auth Status Bar -->
-    <div class="auth-bar hidden">
-      <span id="auth-status">> OFFLINE MODE</span>
-
-      <div style="display: flex; gap: 4px; align-items: center;">
-        <button id="archive-toggle-btn" class="btn-auth" onclick="window.toggleArchivesView()" style="font-size: 8px; padding: 2px 6px; height: 22px; margin-right: 4px;">ARCHIVES</button>
-        <button id="auth-btn" class="btn-auth" onclick="window.handleAuthAction()">SIGN IN</button>
+    <div class="auth-bar hidden" style="flex-direction: column; gap: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <span id="auth-status">> OFFLINE MODE</span>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button id="archive-toggle-btn" class="btn-auth" onclick="window.toggleArchivesView()" style="font-size: 8px; padding: 2px 6px; height: 22px; margin-right: 4px;">ARCHIVES</button>
+          <button id="auth-btn" class="btn-auth" onclick="window.handleAuthAction()">SIGN IN</button>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-top: 1px dashed var(--surface-border); padding-top: 8px; margin-top: 4px;">
+        <span>THEME:</span>
+        <select id="theme-select" onchange="window.changeTheme(this.value)" class="finput" style="padding: 2px 6px; font-size: 9px; font-weight: 700; height: 22px; font-family: var(--font); background: var(--bg); border: 1px solid var(--surface-border); color: var(--text);">
+          <option value="terminal">TERMINAL</option>
+          <option value="minimal-light">MINIMAL LIGHT</option>
+          <option value="minimal-warm">MINIMAL WARM</option>
+          <option value="minimal-flat-dark">MINIMAL FLAT DARK</option>
+          <option value="minimal-flat-oled">MINIMAL FLAT OLED</option>
+        </select>
       </div>
     </div>
 

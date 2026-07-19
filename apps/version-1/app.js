@@ -712,6 +712,23 @@ window.toggleSettings = function() {
   }
 };
 
+// Apply theme immediately to prevent Flash of Unstyled Content (FOUC)
+const savedTheme = localStorage.getItem('simplenotes-theme') || 'terminal';
+document.documentElement.setAttribute('data-theme', savedTheme);
+
+window.changeTheme = function(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('simplenotes-theme', theme);
+};
+
+function initThemeSelect() {
+  const savedTheme = localStorage.getItem('simplenotes-theme') || 'terminal';
+  const themeSelect = document.getElementById('theme-select');
+  if (themeSelect) {
+    themeSelect.value = savedTheme;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const micBtn = document.getElementById('mic-btn');
   const saveBtn = document.getElementById('save-btn');
@@ -734,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-
+  initThemeSelect();
 
   if (isListMode) addListInputRow();
   renderNotes();

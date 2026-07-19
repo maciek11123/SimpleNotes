@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
   --bg: #0a0a0c;
@@ -9,6 +10,54 @@
   --accent: #ff453a; /* used for recording or error */
   --highlight: #00d970; /* status highlight */
   --font: 'Space Mono', monospace;
+}
+
+[data-theme="minimal-light"] {
+  --bg: #e4e2dd;
+  --surface: #e4e2dd;
+  --surface-border: #1a1a1a;
+  --text: #444444;
+  --text-hi: #1a1a1a;
+  --text-dim: #777777;
+  --accent: #1a1a1a;
+  --highlight: #1a1a1a;
+  --font: 'Outfit', sans-serif;
+}
+
+[data-theme="minimal-warm"] {
+  --bg: #f4f3f0;
+  --surface: #f4f3f0;
+  --surface-border: #111111;
+  --text: #444444;
+  --text-hi: #111111;
+  --text-dim: #777777;
+  --accent: #111111;
+  --highlight: #111111;
+  --font: 'Outfit', sans-serif;
+}
+
+[data-theme="minimal-flat-dark"] {
+  --bg: #1a1a1a;
+  --surface: #1a1a1a;
+  --surface-border: #e4e2dd;
+  --text: #999999;
+  --text-hi: #e4e2dd;
+  --text-dim: #777777;
+  --accent: #e4e2dd;
+  --highlight: #e4e2dd;
+  --font: 'Outfit', sans-serif;
+}
+
+[data-theme="minimal-flat-oled"] {
+  --bg: #000000;
+  --surface: #000000;
+  --surface-border: #ffffff;
+  --text: #aaaaaa;
+  --text-hi: #ffffff;
+  --text-dim: #555555;
+  --accent: #ffffff;
+  --highlight: #ffffff;
+  --font: 'Outfit', sans-serif;
 }
 
 * {
@@ -575,5 +624,89 @@ body {
   flex-direction: column;
 }
 
+/* Outfit font override for minimal themes */
+:is([data-theme^="minimal-"]), :is([data-theme^="minimal-"]) * {
+  font-family: 'Outfit', sans-serif !important;
+}
 
+/* Minimal Layout Overrides */
+:is([data-theme^="minimal-"]) .note-container {
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: 1px solid var(--surface-border) !important;
+  background-color: transparent !important;
+}
 
+:is([data-theme^="minimal-"]) .note-card {
+  background-color: transparent !important;
+  padding: 16px 0 !important;
+  box-shadow: none !important;
+}
+
+:is([data-theme^="minimal-"]) .note-card::after {
+  background: linear-gradient(to top, var(--bg) 20%, transparent 100%) !important;
+}
+
+:is([data-theme^="minimal-"]) .notes-creator {
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: 1px solid var(--surface-border) !important;
+  background-color: transparent !important;
+  padding: 10px 0 !important;
+  margin: 8px 0 0 !important;
+}
+
+:is([data-theme^="minimal-"]) .notes-creator .finput {
+  border: none !important;
+  background: transparent !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+:is([data-theme^="minimal-"]) .btn-terminal,
+:is([data-theme^="minimal-"]) .btn-auth {
+  background: transparent !important;
+  border: 1px solid var(--surface-border) !important;
+  color: var(--text) !important;
+}
+
+:is([data-theme^="minimal-"]) .btn-terminal:hover,
+:is([data-theme^="minimal-"]) .btn-auth:hover {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  border-color: var(--accent) !important;
+}
+
+:is([data-theme^="minimal-"]) .btn-terminal.primary {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  border-color: var(--accent) !important;
+}
+
+:is([data-theme^="minimal-"]) .btn-terminal.primary:hover {
+  background: transparent !important;
+  color: var(--text) !important;
+  border-color: var(--surface-border) !important;
+}
+
+:is([data-theme^="minimal-"]) .modal-content {
+  background: var(--bg) !important;
+  border: 1px solid var(--surface-border) !important;
+}
+
+:is([data-theme^="minimal-"]) .auth-bar,
+:is([data-theme^="minimal-"]) .pagination-bar {
+  background-color: transparent !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-top: 1px solid var(--surface-border) !important;
+}
+
+:is([data-theme^="minimal-"]) .note-title-text {
+  color: var(--text-hi);
+  font-weight: 500;
+  font-size: 14px;
+}
