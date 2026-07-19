@@ -61,12 +61,10 @@
 
   <!-- Expandable Note Modal Overlay -->
   <div id="note-modal" class="modal-overlay">
-    <div class="modal-content">
-      <div class="modal-header" style="justify-content: flex-end;">
-        <button class="btn-icon close-modal" onclick="window.closeNoteModal()">✕</button>
-      </div>
+    <div class="modal-content" style="position: relative;">
+      <button class="btn-icon close-modal" onclick="window.closeNoteModal()" style="position: absolute; top: 16px; right: 16px; z-index: 100; font-size: 16px; color: var(--text-dim); background: none; border: none; cursor: pointer;">✕</button>
       <div class="modal-body-container">
-        <div id="modal-note-title" class="note-title-text" contenteditable="true" placeholder="TITLE..."></div>
+        <div class="note-title-text" id="modal-note-title" contenteditable="true" style="padding-right: 32px;"></div>
         <div id="modal-note-content-wrapper"></div>
       </div>
       <div class="modal-footer">
