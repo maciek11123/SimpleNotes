@@ -577,6 +577,14 @@ window.openNoteModal = function(id) {
       `;
       contentWrapper.appendChild(row);
     });
+    const addRow = document.createElement("div");
+    addRow.className = "check-item";
+    addRow.style.marginTop = "8px";
+    addRow.style.paddingLeft = "4px";
+    addRow.innerHTML = `
+      <span style="font-size: 11px; opacity: 0.6; cursor: pointer; font-weight: 700; letter-spacing: 0.05em; color: var(--highlight);" onclick="window.addListItemFromModal()">+ ADD ITEM</span>
+    `;
+    contentWrapper.appendChild(addRow);
   } else {
     const bodyEl = document.createElement("div");
     bodyEl.className = "note-text";
@@ -676,6 +684,18 @@ window.updateListItemFromModal = function(itemIdx, newText) {
       note.body[itemIdx].text = newText.trim();
       localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
       saveNoteToCloud(note);
+    }
+  }
+};
+
+window.addListItemFromModal = function() {
+  if (currentModalNoteId) {
+    const note = notes.find(n => String(n.id) === String(currentModalNoteId));
+    if (note && note.isList && Array.isArray(note.body)) {
+      note.body.push({ text: "NEW ITEM", checked: false });
+      localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
+      saveNoteToCloud(note);
+      window.openNoteModal(currentModalNoteId);
     }
   }
 };
