@@ -326,12 +326,7 @@ function renderNotes() {
     const displayTitle = note.title ? note.title.toUpperCase() : 'UNTITLED NOTE';
 
     wrapper.innerHTML = `
-      <div class="insight-panel">
-        <div class="insight-header">
-          <span class="intent-badge">${note.intent}</span>
-          <span class="status-badge">${note.status || ''}</span>
-        </div>
-        <div class="insight-body">${formattedInsight}</div>
+      <div class="insight-panel" style="display: flex; justify-content: center; align-items: center;">
         <div class="insight-actions">
           <button class="btn-edit" onclick="window.editNote('${note.id}')">EDIT</button>
           <button class="btn-delete" onclick="window.deleteNote('${note.id}')">DELETE</button>
@@ -603,9 +598,6 @@ window.openNoteModal = function(id) {
 
   currentModalNoteId = id;
   
-  document.getElementById("modal-note-intent").textContent = note.intent || "NOTES";
-  document.getElementById("modal-note-status").textContent = note.status || "";
-  
   const titleEl = document.getElementById("modal-note-title");
   titleEl.textContent = note.title || "";
   
@@ -632,9 +624,6 @@ window.openNoteModal = function(id) {
     });
     contentWrapper.appendChild(bodyEl);
   }
-
-  const insightEl = document.getElementById("modal-note-insight");
-  insightEl.innerHTML = note.insight ? note.insight.replace(/\n/g, '<br>') : "No AI insights generated yet.";
 
   document.getElementById("note-modal").classList.add("active");
 };

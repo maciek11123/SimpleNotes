@@ -65,16 +65,12 @@
   <div id="note-modal" class="modal-overlay">
     <div class="modal-content">
       <div class="modal-header">
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <span id="modal-note-intent" class="intent-badge">NOTES</span>
-          <span id="modal-note-status" class="status-badge"></span>
-        </div>
+        <span class="note-title-text" style="font-weight: 700; font-size: 12px; letter-spacing: 0.05em; color: var(--text-dim);">EDIT NOTE</span>
         <button class="btn-icon close-modal" onclick="window.closeNoteModal()">✕</button>
       </div>
       <div class="modal-body-container">
         <div id="modal-note-title" class="note-title-text" contenteditable="true" placeholder="TITLE..."></div>
         <div id="modal-note-content-wrapper"></div>
-        <div id="modal-note-insight" class="modal-insight-section"></div>
       </div>
       <div class="modal-footer">
         <button class="btn-terminal" id="modal-btn-delete" onclick="window.deleteNoteFromModal()">DELETE</button>
