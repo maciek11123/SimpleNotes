@@ -385,10 +385,14 @@ body {
   border: 1px solid var(--surface-border);
   width: 100%;
   max-width: 420px;
+  height: 380px;
+  min-height: 380px;
   max-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+  resize: vertical;
+  overflow: hidden;
 }
 
 .modal-header {
@@ -430,9 +434,8 @@ body {
   line-height: 1.6;
   outline: none;
   white-space: pre-wrap;
-  min-height: 120px;
   flex: 1;
-  resize: vertical;
+  resize: none;
   overflow: auto;
 }
 
