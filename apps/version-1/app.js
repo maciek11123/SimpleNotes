@@ -1,7 +1,7 @@
-import { routeNote } from './api/router.js';
-import { toggleRecording } from './api/audio.js';
-import { makeSwipeable } from './interactions.js';
-import { auth, onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from '../js/firebase.js';
+import { routeNote } from '../../shared/src/api/router.js';
+import { toggleRecording } from '../../shared/src/api/audio.js';
+import { makeSwipeable } from '../../shared/src/interactions.js';
+import { auth, onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from '../../shared/js/firebase.js';
 // Load custom Gemini API keys if present, otherwise default to fallback key
 window.GEMINI_KEYS = [];
 let currentKeyIndex = 0;
