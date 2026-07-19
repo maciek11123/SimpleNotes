@@ -134,6 +134,12 @@ body {
   margin-top: 4px;
 }
 
+.check-item span {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+
 .note-chk {
   accent-color: var(--highlight);
   cursor: pointer;
@@ -143,6 +149,7 @@ body {
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.05em;
+  word-break: break-all;
 }
 
 .note-body-wrapper {
@@ -417,6 +424,7 @@ body {
 .modal-body-container {
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   display: flex;
   flex-direction: column;
