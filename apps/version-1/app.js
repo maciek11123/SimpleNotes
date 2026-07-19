@@ -32,11 +32,7 @@ window.getGeminiKey = function() {
 };
 
 window.rotateGeminiKey = function() {
-  if (window.GEMINI_KEYS.length > 1) {
-    currentKeyIndex = (currentKeyIndex + 1) % window.GEMINI_KEYS.length;
-    console.log(`Rotated to Gemini API key index ${currentKeyIndex}: ${window.getGeminiKey().substring(0, 8)}...`);
-    return true;
-  }
+  // Auto-rotation of Gemini API keys is disabled
   return false;
 };
 
