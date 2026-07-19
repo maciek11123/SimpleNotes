@@ -147,7 +147,7 @@ body {
 
 .note-body-wrapper {
   font-size: 13px;
-  overflow: auto;
+  overflow: hidden;
   flex: 1;
 }
 

@@ -1,5 +1,4 @@
 import { toggleRecording } from '../../shared/src/api/audio.js';
-import { makeSwipeable } from '../../shared/src/interactions.js';
 import { auth, onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from '../../shared/js/firebase.js';
 // Load custom Gemini API keys if present, otherwise default to fallback key
 window.GEMINI_KEYS = [];
@@ -279,12 +278,6 @@ function renderNotes() {
     const displayTitle = note.title ? note.title.toUpperCase() : 'UNTITLED NOTE';
 
     wrapper.innerHTML = `
-      <div class="insight-panel" style="display: flex; justify-content: center; align-items: center;">
-        <div class="insight-actions">
-          <button class="btn-edit" onclick="window.editNote('${note.id}')">EDIT</button>
-          <button class="btn-delete" onclick="window.deleteNote('${note.id}')">DELETE</button>
-        </div>
-      </div>
       <div class="note-card">
         <div class="note-card-header">
           <div class="note-title-text">${displayTitle}</div>
@@ -296,14 +289,12 @@ function renderNotes() {
 
     container.appendChild(wrapper);
 
-    // Make the note card swipeable
+    // Get note card element
     const cardElement = wrapper.querySelector('.note-card');
-    makeSwipeable(cardElement);
 
     // Expand to fullscreen detail modal on click
     cardElement.addEventListener('click', (e) => {
       if (e.target.type === 'checkbox' || e.target.closest('input')) return;
-      if (cardElement.classList.contains('revealed')) return;
       window.openNoteModal(note.id);
     });
   });
