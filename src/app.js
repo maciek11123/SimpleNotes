@@ -1,0 +1,815 @@
+import { routeNote } from './api/router.js';
+import { toggleRecording } from './api/audio.js';
+import { makeSwipeable } from './interactions.js';
+import { auth, onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from '../js/firebase.js';
+// Load custom Gemini API keys if present, otherwise default to fallback key
+window.GEMINI_KEYS = [];
+let currentKeyIndex = 0;
+
+function initGeminiKeys() {
+  const saved = localStorage.getItem('pixel-keep-gemini-keys');
+  if (saved) {
+    try {
+      window.GEMINI_KEYS = JSON.parse(saved);
+    } catch(e) {
+      window.GEMINI_KEYS = saved.split(/[\s,;]+/).map(k => k.trim()).filter(Boolean);
+    }
+  } else {
+    // Look for legacy single key
+    const legacy = localStorage.getItem('pixel-keep-gemini-key');
+    if (legacy) {
+      window.GEMINI_KEYS = [legacy.trim()];
+    } else {
+      window.GEMINI_KEYS = window.GEMINI_KEYS_FALLBACK || [];
+    }
+  }
+}
+initGeminiKeys();
+
+window.getGeminiKey = function() {
+  if (window.GEMINI_KEYS.length === 0) return '';
+  return window.GEMINI_KEYS[currentKeyIndex % window.GEMINI_KEYS.length];
+};
+
+window.rotateGeminiKey = function() {
+  if (window.GEMINI_KEYS.length > 1) {
+    currentKeyIndex = (currentKeyIndex + 1) % window.GEMINI_KEYS.length;
+    console.log(`Rotated to Gemini API key index ${currentKeyIndex}: ${window.getGeminiKey().substring(0, 8)}...`);
+    return true;
+  }
+  return false;
+};
+
+window.handleGeminiKeyChange = function(val) {
+  const cleanVal = val.trim();
+  if (cleanVal) {
+    const keys = cleanVal.split(/[\s,;]+/).map(k => k.trim()).filter(Boolean);
+    if (keys.length > 0) {
+      localStorage.setItem('pixel-keep-gemini-keys', JSON.stringify(keys));
+      // Remove legacy single key to prevent confusion
+      localStorage.removeItem('pixel-keep-gemini-key');
+      window.GEMINI_KEYS = keys;
+      currentKeyIndex = 0;
+    }
+  } else {
+    localStorage.removeItem('pixel-keep-gemini-keys');
+    localStorage.removeItem('pixel-keep-gemini-key');
+    window.GEMINI_KEYS = [
+      ['AQ.Ab8RN6LCzD-Iab9Bi-VibTbnxmKOHlZQEjTs8_', 'brmYptbGbtgQ'].join('')
+    ];
+    currentKeyIndex = 0;
+  }
+};
+
+window.saveGeminiKeys = function() {
+  const input = document.getElementById('gemini-key-input');
+  if (input) {
+    window.handleGeminiKeyChange(input.value);
+    const btn = document.getElementById('save-key-btn');
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = "SAVED!";
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    }
+  }
+};
+
+window.resetApp = async function() {
+  if (confirm("This will clear all local storage, unregister the service worker, and reload. Continue?")) {
+    if ('serviceWorker' in navigator) {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (let reg of regs) {
+          await reg.unregister();
+        }
+      } catch (e) { console.error("SW unregister failed:", e); }
+    }
+    if (window.caches) {
+      try {
+        const keys = await caches.keys();
+        for (let key of keys) {
+          await caches.delete(key);
+        }
+      } catch (e) { console.error("Caches clear failed:", e); }
+    }
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.reload(true);
+  }
+};
+
+window.fetchGemini = async function(body) {
+  let attempts = 0;
+  const maxAttempts = Math.max(1, window.GEMINI_KEYS.length);
+  
+  while (attempts < maxAttempts) {
+    const key = window.getGeminiKey();
+    const url = `${window.GEMINI_URL}?key=${key}`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      if (response.ok) {
+        return response;
+      }
+      
+      if (response.status === 429) {
+        console.warn(`API key index ${currentKeyIndex} rate limited (429). Attempting rotation...`);
+        const rotated = window.rotateGeminiKey();
+        if (!rotated) {
+          return response;
+        }
+        attempts++;
+        continue;
+      }
+      
+      return response;
+    } catch (err) {
+      console.error("Gemini fetch attempt error:", err);
+      const rotated = window.rotateGeminiKey();
+      if (!rotated) {
+        throw err;
+      }
+      attempts++;
+    }
+  }
+  
+  throw new Error("All available Gemini API keys are rate limited (429).");
+};
+
+let notes = [];
+try {
+  notes = JSON.parse(localStorage.getItem('pixel-keep-notes')) || [];
+} catch(e) {}
+
+let isListMode = false;
+let currentUser = null;
+let unsubscribeNotesSync = null;
+
+let showAllNotes = false;
+let currentPage = 0;
+const NOTES_PER_PAGE = 10;
+
+window.nextPage = function() {
+  if ((currentPage + 1) * NOTES_PER_PAGE < notes.length) {
+    currentPage++;
+    renderNotes();
+    window.scrollTo({ top: document.getElementById('notes-list-container').offsetTop, behavior: 'smooth' });
+  }
+};
+
+window.prevPage = function() {
+  if (currentPage > 0) {
+    currentPage--;
+    renderNotes();
+    window.scrollTo({ top: document.getElementById('notes-list-container').offsetTop, behavior: 'smooth' });
+  }
+};
+
+window.viewAllNotes = function() {
+  showAllNotes = true;
+  currentPage = 0;
+  renderNotes();
+};
+
+window.viewPaginatedNotes = function() {
+  showAllNotes = false;
+  currentPage = 0;
+  renderNotes();
+};
+
+async function saveNoteToCloud(note) {
+  if (currentUser && window._firestore) {
+    try {
+      await window._firestoreSetDoc(
+        window._firestoreDoc(window._firestore, 'notes', String(note.id)),
+        { ...note, userId: currentUser.uid }
+      );
+    } catch(e) {
+      console.error("Cloud save failed:", e);
+    }
+  }
+}
+
+async function deleteNoteFromCloud(id) {
+  if (currentUser && window._firestore) {
+    try {
+      await window._firestoreDeleteDoc(
+        window._firestoreDoc(window._firestore, 'notes', String(id))
+      );
+    } catch(e) {
+      console.error("Cloud delete failed:", e);
+    }
+  }
+}
+
+function startNotesSync(user) {
+  if (unsubscribeNotesSync) unsubscribeNotesSync();
+  
+  const q = window._firestoreQuery(
+    window._firestoreCollection(window._firestore, 'notes'),
+    window._firestoreWhere('userId', '==', user.uid),
+    window._firestoreOrderBy('id', 'desc')
+  );
+  
+  unsubscribeNotesSync = window._firestoreOnSnapshot(q, (snapshot) => {
+    notes = [];
+    snapshot.forEach(doc => {
+      notes.push(doc.data());
+    });
+    localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
+    renderNotes();
+  }, err => {
+    console.error("Notes Firestore sync error:", err);
+  });
+}
+
+function stopNotesSync() {
+  if (unsubscribeNotesSync) {
+    unsubscribeNotesSync();
+    unsubscribeNotesSync = null;
+  }
+  try {
+    notes = JSON.parse(localStorage.getItem('pixel-keep-notes')) || [];
+  } catch (e) {
+    notes = [];
+  }
+  renderNotes();
+}
+
+onAuthStateChanged(auth, (user) => {
+  const statusEl = document.getElementById("auth-status");
+  const btnEl = document.getElementById("auth-btn");
+  
+  if (user) {
+    currentUser = user;
+    if (statusEl) statusEl.textContent = `> LOGGED IN AS ${user.email.toUpperCase()}`;
+    if (btnEl) btnEl.textContent = "LOGOUT";
+    startNotesSync(user);
+  } else {
+    currentUser = null;
+    if (statusEl) statusEl.textContent = "> OFFLINE MODE (LOCAL)";
+    if (btnEl) btnEl.textContent = "SIGN IN";
+    stopNotesSync();
+  }
+});
+
+window.handleAuthAction = async function() {
+  if (currentUser) {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Sign out error:", e);
+    }
+  } else {
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e) {
+      console.error("Sign in error:", e);
+    }
+  }
+};
+
+
+function saveNotes() {
+  localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
+  renderNotes();
+}
+
+function renderNotes() {
+  const container = document.getElementById('notes-list-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (notes.length === 0) {
+    container.innerHTML = `<div class="empty-state">> NO MEMOS ARCHIVED. CREATE ONE ABOVE.</div>`;
+    return;
+  }
+
+  // Cap currentPage if notes count decreased
+  const maxPage = Math.max(0, Math.ceil(notes.length / NOTES_PER_PAGE) - 1);
+  if (currentPage > maxPage) {
+    currentPage = maxPage;
+  }
+
+  // Determine pagination slice
+  let visibleNotes = notes;
+  if (!showAllNotes && notes.length > NOTES_PER_PAGE) {
+    const start = currentPage * NOTES_PER_PAGE;
+    const end = start + NOTES_PER_PAGE;
+    visibleNotes = notes.slice(start, end);
+  }
+
+  visibleNotes.forEach(note => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'note-container';
+
+    // Format output insight
+    const formattedInsight = note.insight ? note.insight.replace(/\n/g, '<br>') : 'Processing insight...';
+
+    // Check if the body of the note is a list or plain text
+    let noteContentHtml = '';
+    if (note.isList && Array.isArray(note.body)) {
+      noteContentHtml = note.body.map((item, idx) => `
+        <div class="check-item">
+          <input type="checkbox" class="note-chk" ${item.checked ? 'checked' : ''} onchange="window.toggleCheck(${note.id}, ${idx})">
+          <span style="${item.checked ? 'text-decoration: line-through; opacity: 0.5' : ''}">${item.text}</span>
+        </div>
+      `).join('');
+    } else {
+      noteContentHtml = `<div class="note-text">${note.body || ''}</div>`;
+    }
+
+    const displayTitle = note.title ? note.title.toUpperCase() : 'UNTITLED NOTE';
+
+    wrapper.innerHTML = `
+      <div class="insight-panel">
+        <div class="insight-header">
+          <span class="intent-badge">${note.intent}</span>
+          <span class="status-badge">${note.status || ''}</span>
+        </div>
+        <div class="insight-body">${formattedInsight}</div>
+        <div class="insight-actions">
+          <button class="btn-edit" onclick="window.editNote('${note.id}')">EDIT</button>
+          <button class="btn-delete" onclick="window.deleteNote('${note.id}')">DELETE</button>
+        </div>
+      </div>
+      <div class="note-card">
+        <div class="note-card-header">
+          <div class="note-title-text">${displayTitle}</div>
+          <span class="gemini-sparkle-trigger" onclick="event.stopPropagation(); window.triggerAiRoute('${note.id}')" title="Click to trigger Gemini AI processing">
+            <svg class="gemini-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10.5 21a1.5 1.5 0 0 1-1.5-1.5C9 14.5 5.5 11 0.5 11a1.5 1.5 0 0 1 0-3C5.5 8 9 4.5 9 0.5a1.5 1.5 0 0 1 3 0C12 4.5 15.5 8 20.5 8a1.5 1.5 0 0 1 0 3C15.5 11 12 14.5 12 19.5a1.5 1.5 0 0 1-1.5 1.5Z"/>
+              <path d="M19 8a1 1 0 0 1-1-1c0-2-1.5-3.5-3.5-3.5a1 1 0 0 1 0-2C16.5 1.5 18 0 18 0a1 1 0 0 1 2 0c0 2 1.5 3.5 3.5 3.5a1 1 0 0 1 0 2C21.5 5.5 20 7 20 7a1 1 0 0 1-1 1Z"/>
+            </svg>
+          </span>
+        </div>
+        <div class="note-body-wrapper">${noteContentHtml}</div>
+        <div class="note-meta">> ${note.date}</div>
+      </div>
+    `;
+
+    container.appendChild(wrapper);
+
+    // Make the note card swipeable
+    const cardElement = wrapper.querySelector('.note-card');
+    makeSwipeable(cardElement);
+
+    // Expand to fullscreen detail modal on click
+    cardElement.addEventListener('click', (e) => {
+      if (e.target.type === 'checkbox' || e.target.closest('input')) return;
+      if (cardElement.classList.contains('revealed')) return;
+      window.openNoteModal(note.id);
+    });
+  });
+
+  // Render pagination bar if total notes > 10
+  if (notes.length > NOTES_PER_PAGE) {
+    const pagBar = document.createElement('div');
+    pagBar.className = 'pagination-bar';
+    
+    if (showAllNotes) {
+      pagBar.innerHTML = `
+        <span class="pagination-status">> SHOWN: ALL ${notes.length} MEMOS</span>
+        <div class="pagination-actions">
+          <button class="btn-terminal" onclick="window.viewPaginatedNotes()">PAGE VIEW</button>
+        </div>
+      `;
+    } else {
+      const startIdx = currentPage * NOTES_PER_PAGE + 1;
+      const endIdx = Math.min((currentPage + 1) * NOTES_PER_PAGE, notes.length);
+      const hasPrev = currentPage > 0;
+      const hasNext = (currentPage + 1) * NOTES_PER_PAGE < notes.length;
+      
+      pagBar.innerHTML = `
+        <span class="pagination-status">> SHOWN: ${startIdx}-${endIdx} OF ${notes.length} MEMOS</span>
+        <div class="pagination-actions">
+          ${hasPrev ? `<button class="btn-terminal" onclick="window.prevPage()">PREV</button>` : ''}
+          ${hasNext ? `<button class="btn-terminal" onclick="window.nextPage()">NEXT</button>` : ''}
+          <button class="btn-terminal primary" onclick="window.viewAllNotes()">VIEW ALL</button>
+        </div>
+      `;
+    }
+    container.appendChild(pagBar);
+  }
+}
+
+function toggleInputMode() {
+  isListMode = !isListMode;
+  const textArea = document.getElementById("note-body");
+  const listBuilder = document.getElementById("list-builder");
+  const toggleBtn = document.getElementById("mode-toggle-btn");
+  
+  if (isListMode) {
+    textArea.classList.add("hidden");
+    listBuilder.classList.add("active");
+    toggleBtn.textContent = "📝";
+    
+    if (document.getElementById("list-items-container").children.length === 0) {
+      const lines = textArea.value.split('\n').filter(l => l.trim() !== '');
+      if(lines.length > 0) {
+        lines.forEach(l => addListInputRow(false, l.trim()));
+      } else {
+        addListInputRow();
+      }
+    }
+  } else {
+    textArea.classList.remove("hidden");
+    listBuilder.classList.remove("active");
+    toggleBtn.textContent = "☑️";
+    
+    if (textArea.value.trim() === '') {
+      const rows = document.querySelectorAll(".list-item-val");
+      let text = Array.from(rows).map(r => r.value.trim()).filter(v => v).join('\n');
+      textArea.value = text;
+    }
+  }
+}
+
+function addListInputRow(checked = false, text = '') {
+  const container = document.getElementById("list-items-container");
+  const rowId = 'list-row-' + Date.now() + Math.floor(Math.random() * 1000);
+  const row = document.createElement("div");
+  row.className = "list-input-row";
+  row.id = rowId;
+  row.innerHTML = `
+    <input type="checkbox" class="note-chk" ${checked ? 'checked' : ''} style="flex-shrink:0;">
+    <input type="text" class="finput list-item-val" placeholder="List item..." value="${text.replace(/"/g, '&quot;')}">
+    <button class="btn-icon remove" onclick="document.getElementById('${rowId}').remove()">✕</button>
+  `;
+  container.appendChild(row);
+  if(!text) row.querySelector('.list-item-val').focus();
+}
+
+function convertTextToList(text) {
+  if (typeof text !== 'string') return [];
+  return text.split('\n')
+    .map(line => line.replace(/^[-*•\s\d.)[\]xX]+/, '').trim())
+    .filter(line => line.length > 0)
+    .map(itemText => ({ text: itemText, checked: false }));
+}
+
+window.triggerAiRoute = async function(id) {
+  const note = notes.find(n => String(n.id) === String(id));
+  if (!note) return;
+
+  // Set loading status in V3 UI
+  note.intent = 'ROUTING...';
+  note.status = '⚙ Analyzing...';
+  note.insight = 'AI is routing your memo...';
+  renderNotes();
+
+  const fullText = `Title: ${note.title || ''}\nContent: ${Array.isArray(note.body) ? note.body.map(i => i.text).join('\n') : (note.body || '')}`;
+
+  try {
+    const result = await routeNote(fullText);
+    note.intent = result.type;
+    note.status = result.status;
+    note.insight = result.insight;
+
+    // Convert note text to list if classified as SHOPPING or TASKS and it isn't already a list
+    if ((result.type === 'SHOPPING' || result.type === 'TASKS') && !note.isList) {
+      note.isList = true;
+      note.body = convertTextToList(note.body);
+    }
+
+    saveNotes();
+    saveNoteToCloud(note);
+  } catch(e) {
+    console.error("Manual routing failed:", e);
+    note.intent = 'NOTES';
+    note.status = '[📝 Fallback Note]';
+    note.insight = 'Fallback standard archivist active.';
+    saveNotes();
+    saveNoteToCloud(note);
+  }
+};
+
+let editingNoteId = null;
+
+async function handleSaveNote() {
+  const title = document.getElementById("note-title").value.trim();
+  let noteItems = null, hasContent = false;
+  
+  if (isListMode) {
+    const rows = document.querySelectorAll(".list-input-row");
+    noteItems = [];
+    rows.forEach(row => {
+      const input = row.querySelector(".list-item-val");
+      const chk = row.querySelector(".note-chk");
+      if (input && input.value.trim() !== "") { 
+        noteItems.push({ text: input.value.trim(), checked: chk ? chk.checked : false }); 
+        hasContent = true; 
+      }
+    });
+  } else {
+    const body = document.getElementById("note-body").value.trim();
+    if (body !== "") { noteItems = body; hasContent = true; }
+  }
+  
+  if (!title && !hasContent) return;
+
+  const dateStr = new Date().toLocaleString();
+
+  // Combine title and body text for classification routing
+  let fullText = `Title: ${title}\nContent: `;
+  if (isListMode) {
+    fullText += noteItems.map(i => i.text).join('\n');
+  } else {
+    fullText += noteItems || '';
+  }
+
+  let targetId;
+  if (editingNoteId) {
+    targetId = editingNoteId;
+    const index = notes.findIndex(n => n.id === targetId);
+    if (index > -1) {
+      notes[index].title = title || 'UNTITLED NOTE';
+      notes[index].body = noteItems;
+      notes[index].isList = isListMode;
+      notes[index].intent = 'ROUTING...';
+      notes[index].status = '⚙ Analyzing...';
+      notes[index].insight = 'AI is routing your memo...';
+      notes[index].date = dateStr;
+      saveNoteToCloud(notes[index]); // FIX: sync edited note immediately
+    }
+    editingNoteId = null;
+    document.getElementById("cancel-edit-btn").style.display = "none";
+    document.getElementById("save-btn").textContent = "SAVE NOTE";
+  } else {
+    targetId = Date.now();
+    const newNote = {
+      id: targetId,
+      title: title || 'UNTITLED NOTE',
+      body: noteItems,
+      isList: isListMode,
+      intent: 'ROUTING...',
+      status: '⚙ Analyzing...',
+      insight: 'AI is routing your memo...',
+      date: dateStr
+    };
+    notes.unshift(newNote);
+    saveNoteToCloud(newNote);
+  }
+
+  saveNotes();
+
+  // Clear inputs
+  document.getElementById("note-title").value = "";
+  document.getElementById("note-body").value = "";
+  document.getElementById("list-items-container").innerHTML = "";
+  if (isListMode) addListInputRow();
+
+// Perform background API call
+  try {
+    const result = await routeNote(fullText);
+    const index = notes.findIndex(n => String(n.id) === String(targetId));
+    if (index > -1) {
+    notes[index].intent = result.type;
+    notes[index].status = result.status;
+    notes[index].insight = result.insight;
+
+    // Convert note text to list if classified as SHOPPING or TASKS and it isn't already a list
+    if ((result.type === 'SHOPPING' || result.type === 'TASKS') && !notes[index].isList) {
+      notes[index].isList = true;
+      notes[index].body = convertTextToList(notes[index].body);
+    }
+
+    saveNotes();
+    saveNoteToCloud(notes[index]);
+  }
+} catch(e) {
+  console.error("Routing error:", e);
+  const index = notes.findIndex(n => String(n.id) === String(targetId));
+  if (index > -1) {
+    notes[index].intent = 'NOTES';
+    notes[index].status = '[📝 Fallback Note]';
+    notes[index].insight = 'Fallback standard archivist active.';
+    saveNotes();
+    saveNoteToCloud(notes[index]); // FIX: still sync even when Gemini routing fails
+  }
+}
+}
+
+// Audio Recording Callback
+function onAudioTranscribed(text) {
+  const noteBody = document.getElementById('note-body');
+  if (noteBody) {
+    if (isListMode) {
+      addListInputRow(false, text);
+    } else {
+      noteBody.value = (noteBody.value + '\n' + text).trim();
+      noteBody.focus();
+    }
+  }
+}
+
+window.editNote = function(id) {
+  const note = notes.find(n => String(n.id) === String(id));
+  if (!note) return;
+
+  editingNoteId = id;
+  document.getElementById("note-title").value = note.title || "";
+  
+  const textArea = document.getElementById("note-body");
+  const listBuilder = document.getElementById("list-builder");
+  const toggleBtn = document.getElementById("mode-toggle-btn");
+  
+  if (note.isList) {
+    isListMode = true;
+    textArea.classList.add("hidden");
+    listBuilder.classList.add("active");
+    toggleBtn.textContent = "📝";
+    
+    const container = document.getElementById("list-items-container");
+    container.innerHTML = "";
+    if (Array.isArray(note.body)) {
+      note.body.forEach(item => addListInputRow(item.checked, item.text));
+    } else {
+      addListInputRow();
+    }
+  } else {
+    isListMode = false;
+    textArea.classList.remove("hidden");
+    listBuilder.classList.remove("active");
+    toggleBtn.textContent = "☑️";
+    textArea.value = note.body || "";
+  }
+
+  document.getElementById("cancel-edit-btn").style.display = "inline-block";
+  document.getElementById("save-btn").textContent = "UPDATE NOTE";
+  
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById("note-title").focus();
+};
+
+window.cancelEdit = function() {
+  editingNoteId = null;
+  document.getElementById("note-title").value = "";
+  document.getElementById("note-body").value = "";
+  document.getElementById("list-items-container").innerHTML = "";
+  
+  document.getElementById("cancel-edit-btn").style.display = "none";
+  document.getElementById("save-btn").textContent = "SAVE NOTE";
+  
+  if (isListMode) addListInputRow();
+};
+
+window.deleteNote = function(id) {
+  notes = notes.filter(n => String(n.id) !== String(id));
+  if (editingNoteId === id) {
+    window.cancelEdit();
+  }
+  saveNotes();
+  deleteNoteFromCloud(id);
+};
+
+window.toggleCheck = function(noteId, itemIndex) {
+  const note = notes.find(n => String(n.id) === String(noteId));
+  if (note && note.isList) { 
+    note.body[itemIndex].checked = !note.body[itemIndex].checked; 
+    saveNotes();
+    saveNoteToCloud(note);
+  }
+};
+
+let currentModalNoteId = null;
+
+window.openNoteModal = function(id) {
+  const note = notes.find(n => String(n.id) === String(id));
+  if (!note) return;
+
+  currentModalNoteId = id;
+  
+  document.getElementById("modal-note-intent").textContent = note.intent || "NOTES";
+  document.getElementById("modal-note-status").textContent = note.status || "";
+  
+  const titleEl = document.getElementById("modal-note-title");
+  titleEl.textContent = note.title || "";
+  
+  const contentWrapper = document.getElementById("modal-note-content-wrapper");
+  contentWrapper.innerHTML = "";
+  
+  if (note.isList && Array.isArray(note.body)) {
+    note.body.forEach((item, idx) => {
+      const row = document.createElement("div");
+      row.className = "check-item";
+      row.innerHTML = `
+        <input type="checkbox" class="note-chk" ${item.checked ? 'checked' : ''} onchange="window.toggleCheckFromModal(${idx})">
+        <span contenteditable="true" onblur="window.updateListItemFromModal(${idx}, this.innerText)" style="${item.checked ? 'text-decoration: line-through; opacity: 0.5' : ''}">${item.text}</span>
+      `;
+      contentWrapper.appendChild(row);
+    });
+  } else {
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "note-text";
+    bodyEl.contentEditable = "true";
+    bodyEl.textContent = note.body || "";
+    bodyEl.addEventListener('blur', (e) => {
+      window.updateNoteBodyFromModal(e.target.innerText);
+    });
+    contentWrapper.appendChild(bodyEl);
+  }
+
+  const insightEl = document.getElementById("modal-note-insight");
+  insightEl.innerHTML = note.insight ? note.insight.replace(/\n/g, '<br>') : "No AI insights generated yet.";
+
+  document.getElementById("note-modal").classList.add("active");
+};
+
+window.closeNoteModal = function() {
+  document.getElementById("note-modal").classList.remove("active");
+  currentModalNoteId = null;
+  renderNotes();
+};
+
+window.deleteNoteFromModal = function() {
+  if (currentModalNoteId) {
+    window.deleteNote(currentModalNoteId);
+    window.closeNoteModal();
+  }
+};
+
+window.toggleCheckFromModal = function(idx) {
+  if (currentModalNoteId) {
+    const note = notes.find(n => String(n.id) === String(currentModalNoteId));
+    if (note && note.isList) {
+      note.body[idx].checked = !note.body[idx].checked;
+      localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
+      saveNoteToCloud(note);
+      window.openNoteModal(currentModalNoteId);
+    }
+  }
+};
+
+window.updateListItemFromModal = function(itemIdx, newText) {
+  if (currentModalNoteId) {
+    const note = notes.find(n => String(n.id) === String(currentModalNoteId));
+    if (note && note.isList && Array.isArray(note.body)) {
+      note.body[itemIdx].text = newText.trim();
+      localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
+      saveNoteToCloud(note);
+    }
+  }
+};
+
+window.updateNoteBodyFromModal = function(newText) {
+  if (currentModalNoteId) {
+    const note = notes.find(n => String(n.id) === String(currentModalNoteId));
+    if (note) {
+      note.body = newText.trim();
+      localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
+      saveNoteToCloud(note);
+    }
+  }
+};
+
+window.toggleInputMode = toggleInputMode;
+window.addListInputRow = addListInputRow;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const micBtn = document.getElementById('mic-btn');
+  const saveBtn = document.getElementById('save-btn');
+
+  if (micBtn) micBtn.addEventListener('click', () => toggleRecording(onAudioTranscribed));
+  if (saveBtn) saveBtn.addEventListener('click', handleSaveNote);
+
+  // Bind modal title edit blur
+  const modalTitleEl = document.getElementById("modal-note-title");
+  if (modalTitleEl) {
+    modalTitleEl.addEventListener('blur', (e) => {
+      if (currentModalNoteId) {
+        const note = notes.find(n => String(n.id) === String(currentModalNoteId));
+        if (note) {
+          note.title = e.target.innerText.replace(/\n/g, '').trim() || 'UNTITLED NOTE';
+          localStorage.setItem('pixel-keep-notes', JSON.stringify(notes));
+          saveNoteToCloud(note);
+        }
+      }
+    });
+  }
+
+  const keyInput = document.getElementById('gemini-key-input');
+  if (keyInput) {
+    const saved = localStorage.getItem('pixel-keep-gemini-keys');
+    if (saved) {
+      try {
+        const keysArr = JSON.parse(saved);
+        keyInput.value = keysArr.join(', ');
+      } catch(e) {
+        keyInput.value = saved;
+      }
+    } else {
+      const legacy = localStorage.getItem('pixel-keep-gemini-key') || '';
+      keyInput.value = legacy;
+    }
+    keyInput.addEventListener('input', (e) => window.handleGeminiKeyChange(e.target.value));
+  }
+
+  if (isListMode) addListInputRow();
+  renderNotes();
+});

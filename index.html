@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DotMemo - Terminal Console</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0a0c">
+  
+  <!-- PWA iOS support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DotMemo">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  
+  <link rel="stylesheet" href="style.css?v=3.2">
+</head>
+<body>
+  <div class="app-container">
+    
+
+    <!-- Unified Creator Panel (Always visible at the top) -->
+    <div class="notes-creator">
+      <div class="notes-creator-title-row">
+        <input type="text" id="note-title" class="finput" placeholder="TITLE..." autocomplete="off">
+        <button class="btn-icon" id="mode-toggle-btn" onclick="window.toggleInputMode()" title="Toggle List Mode">☑️</button>
+      </div>
+      
+      <textarea id="note-body" class="finput" placeholder="BRAIN DUMP..."></textarea>
+      
+      <div id="list-builder" class="list-builder">
+        <div id="list-items-container"></div>
+        <button class="btn-sec" style="width: fit-content; padding: 6px 12px; font-size: 12px;" onclick="window.addListInputRow()">+ Add Item</button>
+      </div>
+
+      <div class="action-row">
+        <button class="btn-terminal primary" id="save-btn">SAVE NOTE</button>
+        <button class="btn-terminal" id="cancel-edit-btn" onclick="window.cancelEdit()" style="display:none;">CANCEL</button>
+        <button class="btn-terminal" id="mic-btn">REC AUDIO</button>
+      </div>
+    </div>
+
+    <!-- Notes List Feed -->
+    <div class="list-panel">
+      <div class="notes-feed" id="notes-list-container"></div>
+    </div>
+
+    <!-- Auth Status Bar -->
+    <div class="auth-bar">
+      <span id="auth-status">> OFFLINE MODE</span>
+      <div class="key-container" style="display: flex; align-items: center; gap: 6px;">
+        <span class="key-label" style="font-size: 8px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.1em;">GEMINI API KEY:</span>
+        <input type="text" id="gemini-key-input" class="finput key-input" placeholder="PASTE KEYS (COMMA SEPARATED)..." autocomplete="off" style="width: 130px; margin: 0; padding: 4px 8px; font-size: 9px; height: 22px; border: 1px solid var(--surface-border); background: var(--bg); color: var(--text-hi); font-family: monospace;">
+        <button class="btn-auth" id="save-key-btn" onclick="window.saveGeminiKeys()" style="font-size: 8px; padding: 2px 6px; height: 22px; margin-left: 2px;">SAVE</button>
+      </div>
+      <div style="display: flex; gap: 4px; align-items: center;">
+        <button class="btn-auth" onclick="window.resetApp()" style="font-size: 8px; padding: 2px 6px; height: 22px; background: #2b1111; border-color: #552222; color: #ff6666; margin-right: 4px;">RESET</button>
+        <button id="auth-btn" class="btn-auth" onclick="window.handleAuthAction()">SIGN IN</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Expandable Note Modal Overlay -->
+  <div id="note-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span id="modal-note-intent" class="intent-badge">NOTES</span>
+          <span id="modal-note-status" class="status-badge"></span>
+        </div>
+        <button class="btn-icon close-modal" onclick="window.closeNoteModal()">✕</button>
+      </div>
+      <div class="modal-body-container">
+        <div id="modal-note-title" class="note-title-text" contenteditable="true" placeholder="TITLE..."></div>
+        <div id="modal-note-content-wrapper"></div>
+        <div id="modal-note-insight" class="modal-insight-section"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-terminal" id="modal-btn-delete" onclick="window.deleteNoteFromModal()">DELETE</button>
+        <button class="btn-terminal primary" onclick="window.closeNoteModal()">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="src/app.js?v=3.2"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let r of registrations) {
+          r.unregister().then(() => console.log('SW unregistered on localhost'));
+        }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(keys => {
+        for (let k of keys) {
+          caches.delete(k).then(() => console.log('Cache cleared on localhost:', k));
+        }
+      });
+    }
+  } else if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js', {scope: './'})
+      .catch(e => console.log('SW error', e));
+  }
+  </script>
+</body>
+</html>
