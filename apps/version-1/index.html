@@ -48,11 +48,7 @@
     <!-- Auth Status Bar -->
     <div class="auth-bar">
       <span id="auth-status">> OFFLINE MODE</span>
-      <div class="key-container" style="display: flex; align-items: center; gap: 6px;">
-        <span class="key-label" style="font-size: 8px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.1em;">GEMINI API KEY:</span>
-        <input type="text" id="gemini-key-input" class="finput key-input" placeholder="PASTE KEYS (COMMA SEPARATED)..." autocomplete="off" style="width: 130px; margin: 0; padding: 4px 8px; font-size: 9px; height: 22px; border: 1px solid var(--surface-border); background: var(--bg); color: var(--text-hi); font-family: monospace;">
-        <button class="btn-auth" id="save-key-btn" onclick="window.saveGeminiKeys()" style="font-size: 8px; padding: 2px 6px; height: 22px; margin-left: 2px;">SAVE</button>
-      </div>
+
       <div style="display: flex; gap: 4px; align-items: center;">
         <button class="btn-auth" onclick="window.resetApp()" style="font-size: 8px; padding: 2px 6px; height: 22px; background: #2b1111; border-color: #552222; color: #ff6666; margin-right: 4px;">RESET</button>
         <button id="auth-btn" class="btn-auth" onclick="window.handleAuthAction()">SIGN IN</button>

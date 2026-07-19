@@ -19,7 +19,9 @@ function initGeminiKeys() {
     if (legacy) {
       window.GEMINI_KEYS = [legacy.trim()];
     } else {
-      window.GEMINI_KEYS = window.GEMINI_KEYS_FALLBACK || [];
+      window.GEMINI_KEYS = [
+        ['AQ.Ab8RN6LCzD-Iab9Bi-VibTbnxmKOHlZQEjTs8_', 'brmYptbGbtgQ'].join('')
+      ];
     }
   }
 }
@@ -39,39 +41,7 @@ window.rotateGeminiKey = function() {
   return false;
 };
 
-window.handleGeminiKeyChange = function(val) {
-  const cleanVal = val.trim();
-  if (cleanVal) {
-    const keys = cleanVal.split(/[\s,;]+/).map(k => k.trim()).filter(Boolean);
-    if (keys.length > 0) {
-      localStorage.setItem('pixel-keep-gemini-keys', JSON.stringify(keys));
-      // Remove legacy single key to prevent confusion
-      localStorage.removeItem('pixel-keep-gemini-key');
-      window.GEMINI_KEYS = keys;
-      currentKeyIndex = 0;
-    }
-  } else {
-    localStorage.removeItem('pixel-keep-gemini-keys');
-    localStorage.removeItem('pixel-keep-gemini-key');
-    window.GEMINI_KEYS = [
-      ['AQ.Ab8RN6LCzD-Iab9Bi-VibTbnxmKOHlZQEjTs8_', 'brmYptbGbtgQ'].join('')
-    ];
-    currentKeyIndex = 0;
-  }
-};
 
-window.saveGeminiKeys = function() {
-  const input = document.getElementById('gemini-key-input');
-  if (input) {
-    window.handleGeminiKeyChange(input.value);
-    const btn = document.getElementById('save-key-btn');
-    if (btn) {
-      const original = btn.textContent;
-      btn.textContent = "SAVED!";
-      setTimeout(() => { btn.textContent = original; }, 1500);
-    }
-  }
-};
 
 window.resetApp = async function() {
   if (confirm("This will clear all local storage, unregister the service worker, and reload. Continue?")) {
@@ -700,22 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const keyInput = document.getElementById('gemini-key-input');
-  if (keyInput) {
-    const saved = localStorage.getItem('pixel-keep-gemini-keys');
-    if (saved) {
-      try {
-        const keysArr = JSON.parse(saved);
-        keyInput.value = keysArr.join(', ');
-      } catch(e) {
-        keyInput.value = saved;
-      }
-    } else {
-      const legacy = localStorage.getItem('pixel-keep-gemini-key') || '';
-      keyInput.value = legacy;
-    }
-    keyInput.addEventListener('input', (e) => window.handleGeminiKeyChange(e.target.value));
-  }
+
 
   if (isListMode) addListInputRow();
   renderNotes();
