@@ -555,6 +555,11 @@ window.openNoteModal = function(id) {
   if (archiveBtn) {
     archiveBtn.textContent = note.archived ? "UNARCHIVE" : "ARCHIVE";
   }
+
+  const typeToggleBtn = document.getElementById("modal-btn-type-toggle");
+  if (typeToggleBtn) {
+    typeToggleBtn.textContent = note.isList ? "TO TEXT" : "TO LIST";
+  }
   
   const titleEl = document.getElementById("modal-note-title");
   titleEl.textContent = note.title || "";
@@ -607,6 +612,28 @@ window.archiveNoteFromModal = function() {
       saveNotes();
       saveNoteToCloud(note);
       window.closeNoteModal();
+    }
+  }
+};
+
+window.toggleNoteTypeFromModal = function() {
+  if (currentModalNoteId) {
+    const note = notes.find(n => String(n.id) === String(currentModalNoteId));
+    if (note) {
+      if (note.isList) {
+        // Convert checklist array to newline separated text
+        const textBody = (note.body || []).map(item => item.text).join('\n');
+        note.isList = false;
+        note.body = textBody;
+      } else {
+        // Convert text string to checklist items
+        const listBody = (note.body || "").split('\n').map(line => ({ text: line.trim(), checked: false })).filter(item => item.text);
+        note.isList = true;
+        note.body = listBody;
+      }
+      saveNotes();
+      saveNoteToCloud(note);
+      window.openNoteModal(currentModalNoteId);
     }
   }
 };
