@@ -122,9 +122,11 @@ let unsubscribeNotesSync = null;
 let showAllNotes = false;
 let currentPage = 0;
 const NOTES_PER_PAGE = 10;
+let showArchivedOnly = false;
 
 window.nextPage = function() {
-  if ((currentPage + 1) * NOTES_PER_PAGE < notes.length) {
+  const filteredNotes = notes.filter(note => showArchivedOnly ? (note.archived === true) : !note.archived);
+  if ((currentPage + 1) * NOTES_PER_PAGE < filteredNotes.length) {
     currentPage++;
     renderNotes();
     window.scrollTo({ top: document.getElementById('notes-list-container').offsetTop, behavior: 'smooth' });
@@ -254,23 +256,26 @@ function renderNotes() {
   if (!container) return;
   container.innerHTML = '';
 
-  if (notes.length === 0) {
-    container.innerHTML = `<div class="empty-state">> NO MEMOS ARCHIVED. CREATE ONE ABOVE.</div>`;
+  const filteredNotes = notes.filter(note => showArchivedOnly ? (note.archived === true) : !note.archived);
+
+  if (filteredNotes.length === 0) {
+    const emptyMsg = showArchivedOnly ? "> NO ARCHIVED MEMOS FOUND." : "> NO MEMOS ARCHIVED. CREATE ONE ABOVE.";
+    container.innerHTML = `<div class="empty-state">${emptyMsg}</div>`;
     return;
   }
 
   // Cap currentPage if notes count decreased
-  const maxPage = Math.max(0, Math.ceil(notes.length / NOTES_PER_PAGE) - 1);
+  const maxPage = Math.max(0, Math.ceil(filteredNotes.length / NOTES_PER_PAGE) - 1);
   if (currentPage > maxPage) {
     currentPage = maxPage;
   }
 
   // Determine pagination slice
-  let visibleNotes = notes;
-  if (!showAllNotes && notes.length > NOTES_PER_PAGE) {
+  let visibleNotes = filteredNotes;
+  if (!showAllNotes && filteredNotes.length > NOTES_PER_PAGE) {
     const start = currentPage * NOTES_PER_PAGE;
     const end = start + NOTES_PER_PAGE;
-    visibleNotes = notes.slice(start, end);
+    visibleNotes = filteredNotes.slice(start, end);
   }
 
   visibleNotes.forEach(note => {
@@ -326,25 +331,25 @@ function renderNotes() {
   });
 
   // Render pagination bar if total notes > 10
-  if (notes.length > NOTES_PER_PAGE) {
+  if (filteredNotes.length > NOTES_PER_PAGE) {
     const pagBar = document.createElement('div');
     pagBar.className = 'pagination-bar';
     
     if (showAllNotes) {
       pagBar.innerHTML = `
-        <span class="pagination-status">> SHOWN: ALL ${notes.length} MEMOS</span>
+        <span class="pagination-status">> SHOWN: ALL ${filteredNotes.length} MEMOS</span>
         <div class="pagination-actions">
           <button class="btn-terminal" onclick="window.viewPaginatedNotes()">PAGE VIEW</button>
         </div>
       `;
     } else {
       const startIdx = currentPage * NOTES_PER_PAGE + 1;
-      const endIdx = Math.min((currentPage + 1) * NOTES_PER_PAGE, notes.length);
+      const endIdx = Math.min((currentPage + 1) * NOTES_PER_PAGE, filteredNotes.length);
       const hasPrev = currentPage > 0;
-      const hasNext = (currentPage + 1) * NOTES_PER_PAGE < notes.length;
+      const hasNext = (currentPage + 1) * NOTES_PER_PAGE < filteredNotes.length;
       
       pagBar.innerHTML = `
-        <span class="pagination-status">> SHOWN: ${startIdx}-${endIdx} OF ${notes.length} MEMOS</span>
+        <span class="pagination-status">> SHOWN: ${startIdx}-${endIdx} OF ${filteredNotes.length} MEMOS</span>
         <div class="pagination-actions">
           ${hasPrev ? `<button class="btn-terminal" onclick="window.prevPage()">PREV</button>` : ''}
           ${hasNext ? `<button class="btn-terminal" onclick="window.nextPage()">NEXT</button>` : ''}
@@ -568,6 +573,11 @@ window.openNoteModal = function(id) {
 
   currentModalNoteId = id;
   
+  const archiveBtn = document.getElementById("modal-btn-archive");
+  if (archiveBtn) {
+    archiveBtn.textContent = note.archived ? "UNARCHIVE" : "ARCHIVE";
+  }
+  
   const titleEl = document.getElementById("modal-note-title");
   titleEl.textContent = note.title || "";
   
@@ -609,6 +619,37 @@ window.deleteNoteFromModal = function() {
     window.deleteNote(currentModalNoteId);
     window.closeNoteModal();
   }
+};
+
+window.archiveNoteFromModal = function() {
+  if (currentModalNoteId) {
+    const note = notes.find(n => String(n.id) === String(currentModalNoteId));
+    if (note) {
+      note.archived = !note.archived;
+      saveNotes();
+      saveNoteToCloud(note);
+      window.closeNoteModal();
+    }
+  }
+};
+
+window.toggleArchivesView = function() {
+  showArchivedOnly = !showArchivedOnly;
+  currentPage = 0;
+  const toggleBtn = document.getElementById("archive-toggle-btn");
+  if (toggleBtn) {
+    toggleBtn.textContent = showArchivedOnly ? "ACTIVE MEMOS" : "ARCHIVES";
+    if (showArchivedOnly) {
+      toggleBtn.style.backgroundColor = "var(--highlight)";
+      toggleBtn.style.color = "var(--bg)";
+      toggleBtn.style.borderColor = "var(--highlight)";
+    } else {
+      toggleBtn.style.backgroundColor = "";
+      toggleBtn.style.color = "";
+      toggleBtn.style.borderColor = "";
+    }
+  }
+  renderNotes();
 };
 
 window.toggleCheckFromModal = function(idx) {
