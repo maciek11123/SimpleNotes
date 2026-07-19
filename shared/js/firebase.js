@@ -6,14 +6,15 @@ import { getStorage, ref, uploadBytes, getBytes, deleteObject }
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
-// Verbatim Firebase Configuration from Budget App
+// Verbatim Firebase Configuration from SimpleNote App
 const fbApp = initializeApp({
-  apiKey:            ['AIzaSyASbcr_P6BC', '-HFUGyv7QXXoKwOSx4yDGPk'].join(''),
-  authDomain:        'dad-app-c3920.firebaseapp.com',
-  projectId:         'dad-app-c3920',
-  storageBucket:     'dad-app-c3920.firebasestorage.app',
-  messagingSenderId: '64907277674',
-  appId:             '1:64907277674:web:6f4629695384cf78c1e113'
+  apiKey:            ['AIzaSyDyW2mNr3wOXjVY', 'APH75igXzKuiPJHVRrU'].join(''),
+  authDomain:        'simplenote-10e1b.firebaseapp.com',
+  projectId:         'simplenote-10e1b',
+  storageBucket:     'simplenote-10e1b.firebasestorage.app',
+  messagingSenderId: '768830004912',
+  appId:             '1:768830004912:web:3fbd6ec7d9a54e6851a575',
+  measurementId:     'G-LC7SNZ54G0'
 });
 
 const db = getFirestore(fbApp);
