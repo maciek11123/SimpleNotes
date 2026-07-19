@@ -29,21 +29,15 @@ async function toggleRecording(onRecordStop) {
         // Release mic resources
         stream.getTracks().forEach(track => track.stop());
 
-        micBtn.textContent = "TRANSCRIBING...";
+        micBtn.textContent = "REC AUDIO";
         micBtn.classList.remove("recording");
 
-        try {
-          const text = await transcribeAudioBlob(audioBlob);
-          onRecordStop(text);
-        } catch(e) {
-          console.error("Transcription failed:", e);
-          const userFriendlyMsg = e.message.includes("429") 
-            ? "Gemini rate limit exceeded (429). Please wait a few seconds before trying again."
-            : e.message;
-          onRecordStop(`[Transcription failed: ${userFriendlyMsg}]`);
-        }
-
-        micBtn.textContent = "REC AUDIO";
+        // Convert blob to base64 data URL and callback
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          onRecordStop(reader.result);
+        };
+        reader.readAsDataURL(audioBlob);
       };
 
       mediaRecorder.start();

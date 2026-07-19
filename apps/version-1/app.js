@@ -254,6 +254,7 @@ function renderNotes() {
   visibleNotes.forEach(note => {
     const wrapper = document.createElement('div');
     wrapper.className = 'note-container';
+    wrapper.setAttribute('data-id', note.id);
 
     // Format output insight
     const formattedInsight = note.insight ? note.insight.replace(/\n/g, '<br>') : 'Processing insight...';
@@ -269,6 +270,23 @@ function renderNotes() {
       `).join('');
     } else {
       noteContentHtml = `<div class="note-text">${note.body || ''}</div>`;
+    }
+
+    if (note.audio) {
+      const isPlaying = activeAudioNoteId === note.id;
+      const playLabel = isPlaying ? '⏹️ STOP' : '▶️ PLAY';
+      noteContentHtml += `
+        <div class="audio-player-row" style="display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 6px; border: 1px solid var(--surface-border); background: var(--bg); border-radius: 4px;">
+          <button class="btn-terminal play-btn" data-id="${note.id}" onclick="event.stopPropagation(); window.toggleAudioPlayback(${note.id}, '${note.audio}')" style="padding: 4px 8px; font-size: 9px; min-width: 60px;">${playLabel}</button>
+          <span style="font-size: 10px; color: var(--text-dim); flex: 1;">🎙️ Voice Note</span>
+          <button class="btn-icon gemini-transcribe-btn" onclick="event.stopPropagation(); window.transcribeNoteAudio(${note.id})" title="Convert to text with Gemini" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px; border: 1px solid var(--surface-border); border-radius: 4px; background: var(--surface);">
+            <svg class="gemini-icon" viewBox="0 0 24 24" fill="currentColor" style="width: 12px; height: 12px; color: var(--highlight);">
+              <path d="M10.5 21a1.5 1.5 0 0 1-1.5-1.5C9 14.5 5.5 11 0.5 11a1.5 1.5 0 0 1 0-3C5.5 8 9 4.5 9 0.5a1.5 1.5 0 0 1 3 0C12 4.5 15.5 8 20.5 8a1.5 1.5 0 0 1 0 3C15.5 11 12 14.5 12 19.5a1.5 1.5 0 0 1-1.5 1.5Z"/>
+              <path d="M19 8a1 1 0 0 1-1-1c0-2-1.5-3.5-3.5-3.5a1 1 0 0 1 0-2C16.5 1.5 18 0 18 0a1 1 0 0 1 2 0c0 2 1.5 3.5 3.5 3.5a1 1 0 0 1 0 2C21.5 5.5 20 7 20 7a1 1 0 0 1-1 1Z"/>
+            </svg>
+          </button>
+        </div>
+      `;
     }
 
     const displayTitle = note.title ? note.title.toUpperCase() : 'UNTITLED NOTE';
@@ -449,16 +467,23 @@ async function handleSaveNote() {
 }
 
 // Audio Recording Callback
-function onAudioTranscribed(text) {
-  const noteBody = document.getElementById('note-body');
-  if (noteBody) {
-    if (isListMode) {
-      addListInputRow(false, text);
-    } else {
-      noteBody.value = (noteBody.value + '\n' + text).trim();
-      noteBody.focus();
-    }
-  }
+function onAudioRecorded(audioDataUrl) {
+  const dateStr = new Date().toLocaleString();
+  const targetId = Date.now();
+  const newNote = {
+    id: targetId,
+    title: 'AUDIO MEMO',
+    body: '',
+    isList: false,
+    audio: audioDataUrl,
+    intent: 'NOTES',
+    status: '',
+    insight: '',
+    date: dateStr
+  };
+  notes.unshift(newNote);
+  saveNotes();
+  saveNoteToCloud(newNote);
 }
 
 window.editNote = function(id) {
@@ -553,6 +578,25 @@ window.openNoteModal = function(id) {
   
   const contentWrapper = document.getElementById("modal-note-content-wrapper");
   contentWrapper.innerHTML = "";
+  
+  if (note.audio) {
+    const isPlaying = activeAudioNoteId === note.id;
+    const playLabel = isPlaying ? '⏹️ STOP' : '▶️ PLAY';
+    const audioDiv = document.createElement("div");
+    audioDiv.innerHTML = `
+      <div class="audio-player-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px; border: 1px solid var(--surface-border); background: var(--bg); border-radius: 4px;">
+        <button class="btn-terminal play-btn" data-id="${note.id}" onclick="event.stopPropagation(); window.toggleAudioPlayback(${note.id}, '${note.audio}')" style="padding: 4px 8px; font-size: 10px; min-width: 60px;">${playLabel}</button>
+        <span style="font-size: 11px; color: var(--text-dim); flex: 1;">🎙️ Voice Note</span>
+        <button class="btn-icon gemini-transcribe-btn" onclick="event.stopPropagation(); window.transcribeNoteAudio(${note.id})" title="Convert to text with Gemini" style="display: inline-flex; align-items: center; justify-content: center; padding: 6px; border: 1px solid var(--surface-border); border-radius: 4px; background: var(--surface);">
+          <svg class="gemini-icon" viewBox="0 0 24 24" fill="currentColor" style="width: 12px; height: 12px; color: var(--highlight);">
+            <path d="M10.5 21a1.5 1.5 0 0 1-1.5-1.5C9 14.5 5.5 11 0.5 11a1.5 1.5 0 0 1 0-3C5.5 8 9 4.5 9 0.5a1.5 1.5 0 0 1 3 0C12 4.5 15.5 8 20.5 8a1.5 1.5 0 0 1 0 3C15.5 11 12 14.5 12 19.5a1.5 1.5 0 0 1-1.5 1.5Z"/>
+            <path d="M19 8a1 1 0 0 1-1-1c0-2-1.5-3.5-3.5-3.5a1 1 0 0 1 0-2C16.5 1.5 18 0 18 0a1 1 0 0 1 2 0c0 2 1.5 3.5 3.5 3.5a1 1 0 0 1 0 2C21.5 5.5 20 7 20 7a1 1 0 0 1-1 1Z"/>
+          </svg>
+        </button>
+      </div>
+    `;
+    contentWrapper.appendChild(audioDiv);
+  }
   
   if (note.isList && Array.isArray(note.body)) {
     note.body.forEach((item, idx) => {
@@ -729,11 +773,106 @@ function initThemeSelect() {
   }
 }
 
+let activeAudio = null;
+let activeAudioNoteId = null;
+
+window.toggleAudioPlayback = function(noteId, audioDataUrl) {
+  const playBtns = document.querySelectorAll(`.play-btn[data-id="${noteId}"]`);
+  
+  if (activeAudioNoteId === noteId && activeAudio) {
+    activeAudio.pause();
+    activeAudio = null;
+    activeAudioNoteId = null;
+    playBtns.forEach(btn => btn.textContent = '▶️ PLAY');
+    return;
+  }
+  
+  if (activeAudio) {
+    activeAudio.pause();
+    const prevBtns = document.querySelectorAll(`.play-btn[data-id="${activeAudioNoteId}"]`);
+    prevBtns.forEach(btn => btn.textContent = '▶️ PLAY');
+  }
+  
+  activeAudio = new Audio(audioDataUrl);
+  activeAudioNoteId = noteId;
+  
+  playBtns.forEach(btn => btn.textContent = '⏹️ STOP');
+  
+  activeAudio.onended = () => {
+    playBtns.forEach(btn => btn.textContent = '▶️ PLAY');
+    activeAudio = null;
+    activeAudioNoteId = null;
+  };
+  
+  activeAudio.play().catch(err => {
+    console.error("Audio playback failed:", err);
+    playBtns.forEach(btn => btn.textContent = '▶️ PLAY');
+    activeAudio = null;
+    activeAudioNoteId = null;
+  });
+};
+
+window.transcribeNoteAudio = async function(noteId) {
+  const note = notes.find(n => String(n.id) === String(noteId));
+  if (!note || !note.audio) return;
+
+  const cardElement = document.querySelector(`.note-container[data-id="${noteId}"]`) || document.getElementById('note-modal');
+  const btn = cardElement ? cardElement.querySelector('.gemini-transcribe-btn') : null;
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = '⌛ transcribing...';
+    btn.disabled = true;
+  }
+
+  try {
+    const match = note.audio.match(/^data:(audio\/[a-zA-Z0-9\-+.]+);base64,(.+)$/);
+    if (!match) throw new Error("Invalid audio data format");
+    const mimeType = match[1];
+    const base64Data = match[2];
+
+    const response = await window.fetchGemini({
+      contents: [{
+        parts: [
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data
+            }
+          },
+          {
+            text: "Transcribe the audio exactly and completely. Output ONLY the transcription. Do not explain, summarize, or add markdown."
+          }
+        ]
+      }]
+    });
+
+    if (!response.ok) throw new Error(`Gemini status ${response.status}`);
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+
+    note.body = text;
+    saveNotes();
+    saveNoteToCloud(note);
+    
+    if (currentModalNoteId === noteId) {
+      window.openNoteModal(noteId);
+    }
+  } catch(e) {
+    console.error("Transcription failed:", e);
+    alert("Transcription failed: " + e.message);
+  } finally {
+    if (btn) {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   const micBtn = document.getElementById('mic-btn');
   const saveBtn = document.getElementById('save-btn');
 
-  if (micBtn) micBtn.addEventListener('click', () => toggleRecording(onAudioTranscribed));
+  if (micBtn) micBtn.addEventListener('click', () => toggleRecording(onAudioRecorded));
   if (saveBtn) saveBtn.addEventListener('click', handleSaveNote);
 
   // Bind modal title edit blur
