@@ -32,12 +32,8 @@ async function toggleRecording(onRecordStop) {
         micBtn.textContent = "REC AUDIO";
         micBtn.classList.remove("recording");
 
-        // Convert blob to base64 data URL and callback
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          onRecordStop(reader.result);
-        };
-        reader.readAsDataURL(audioBlob);
+        // Return the raw blob for Firebase Storage upload
+        onRecordStop(audioBlob);
       };
 
       mediaRecorder.start();

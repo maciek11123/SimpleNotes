@@ -272,12 +272,12 @@ function renderNotes() {
       noteContentHtml = `<div class="note-text">${note.body || ''}</div>`;
     }
 
-    if (note.audio) {
+    if (note.audio || note.audioPath) {
       const isPlaying = activeAudioNoteId === note.id;
       const playLabel = isPlaying ? '⏹️ STOP' : '▶️ PLAY';
       noteContentHtml += `
         <div class="audio-player-row" style="display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 6px; border: 1px solid var(--surface-border); background: var(--bg); border-radius: 4px;">
-          <button class="btn-terminal play-btn" data-id="${note.id}" onclick="event.stopPropagation(); window.toggleAudioPlayback(${note.id}, '${note.audio}')" style="padding: 4px 8px; font-size: 9px; min-width: 60px;">${playLabel}</button>
+          <button class="btn-terminal play-btn" data-id="${note.id}" onclick="event.stopPropagation(); window.toggleAudioPlayback(${note.id})" style="padding: 4px 8px; font-size: 9px; min-width: 60px;">${playLabel}</button>
           <span style="font-size: 10px; color: var(--text-dim); flex: 1;">🎙️ Voice Note</span>
           <button class="btn-icon gemini-transcribe-btn" onclick="event.stopPropagation(); window.transcribeNoteAudio(${note.id})" title="Convert to text with Gemini" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px; border: 1px solid var(--surface-border); border-radius: 4px; background: var(--surface);">
             <svg class="gemini-icon" viewBox="0 0 24 24" fill="currentColor" style="width: 12px; height: 12px; color: var(--highlight);">
@@ -467,20 +467,57 @@ async function handleSaveNote() {
 }
 
 // Audio Recording Callback
-function onAudioRecorded(audioDataUrl) {
+async function onAudioRecorded(audioBlob) {
   const dateStr = new Date().toLocaleString();
   const targetId = Date.now();
+  const mimeType = audioBlob.type || 'audio/webm';
+  const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('wav') ? 'wav' : 'webm';
+
   const newNote = {
     id: targetId,
     title: 'AUDIO MEMO',
     body: '',
     isList: false,
-    audio: audioDataUrl,
+    audioPath: null,
+    audioMime: mimeType,
     intent: 'NOTES',
     status: '',
     insight: '',
     date: dateStr
   };
+
+  // Upload to Firebase Storage if logged in
+  if (currentUser && window._storage) {
+    try {
+      const micBtn = document.getElementById("mic-btn");
+      if (micBtn) micBtn.textContent = "UPLOADING...";
+
+      const storagePath = `audio/${currentUser.uid}/${targetId}.${ext}`;
+      const storageRef = window._storageRef(window._storage, storagePath);
+      await window._storageUploadBytes(storageRef, audioBlob, { contentType: mimeType });
+      newNote.audioPath = storagePath;
+
+      if (micBtn) micBtn.textContent = "REC AUDIO";
+    } catch(e) {
+      console.error("Audio upload failed:", e);
+      // Fallback: store base64 locally only
+      const reader = new FileReader();
+      const dataUrl = await new Promise(resolve => {
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(audioBlob);
+      });
+      newNote.audio = dataUrl;
+    }
+  } else {
+    // Not logged in: store base64 locally
+    const reader = new FileReader();
+    const dataUrl = await new Promise(resolve => {
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(audioBlob);
+    });
+    newNote.audio = dataUrl;
+  }
+
   notes.unshift(newNote);
   saveNotes();
   saveNoteToCloud(newNote);
@@ -538,6 +575,14 @@ window.cancelEdit = function() {
 };
 
 window.deleteNote = function(id) {
+  const note = notes.find(n => String(n.id) === String(id));
+  // Delete audio from Firebase Storage if exists
+  if (note && note.audioPath && currentUser && window._storage) {
+    try {
+      const storageRef = window._storageRef(window._storage, note.audioPath);
+      window._storageDeleteObject(storageRef).catch(e => console.warn('Audio storage delete failed:', e));
+    } catch(e) { console.warn('Audio cleanup error:', e); }
+  }
   notes = notes.filter(n => String(n.id) !== String(id));
   if (editingNoteId === id) {
     window.cancelEdit();
@@ -579,13 +624,13 @@ window.openNoteModal = function(id) {
   const contentWrapper = document.getElementById("modal-note-content-wrapper");
   contentWrapper.innerHTML = "";
   
-  if (note.audio) {
+  if (note.audio || note.audioPath) {
     const isPlaying = activeAudioNoteId === note.id;
     const playLabel = isPlaying ? '⏹️ STOP' : '▶️ PLAY';
     const audioDiv = document.createElement("div");
     audioDiv.innerHTML = `
       <div class="audio-player-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px; border: 1px solid var(--surface-border); background: var(--bg); border-radius: 4px;">
-        <button class="btn-terminal play-btn" data-id="${note.id}" onclick="event.stopPropagation(); window.toggleAudioPlayback(${note.id}, '${note.audio}')" style="padding: 4px 8px; font-size: 10px; min-width: 60px;">${playLabel}</button>
+        <button class="btn-terminal play-btn" data-id="${note.id}" onclick="event.stopPropagation(); window.toggleAudioPlayback(${note.id})" style="padding: 4px 8px; font-size: 10px; min-width: 60px;">${playLabel}</button>
         <span style="font-size: 11px; color: var(--text-dim); flex: 1;">🎙️ Voice Note</span>
         <button class="btn-icon gemini-transcribe-btn" onclick="event.stopPropagation(); window.transcribeNoteAudio(${note.id})" title="Convert to text with Gemini" style="display: inline-flex; align-items: center; justify-content: center; padding: 6px; border: 1px solid var(--surface-border); border-radius: 4px; background: var(--surface);">
           <svg class="gemini-icon" viewBox="0 0 24 24" fill="currentColor" style="width: 12px; height: 12px; color: var(--highlight);">
@@ -776,7 +821,26 @@ function initThemeSelect() {
 let activeAudio = null;
 let activeAudioNoteId = null;
 
-window.toggleAudioPlayback = function(noteId, audioDataUrl) {
+// Helper: get audio bytes and mime from a note (Storage or local base64)
+async function getAudioData(note) {
+  if (note.audioPath && window._storage) {
+    const storageRef = window._storageRef(window._storage, note.audioPath);
+    const bytes = await window._storageGetBytes(storageRef);
+    const mimeType = note.audioMime || 'audio/webm';
+    return { bytes, mimeType };
+  } else if (note.audio) {
+    const match = note.audio.match(/^data:(audio\/[a-zA-Z0-9\-+.]+);base64,(.+)$/);
+    if (!match) throw new Error('Invalid audio data format');
+    const mimeType = match[1];
+    const raw = atob(match[2]);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return { bytes: bytes.buffer, mimeType };
+  }
+  throw new Error('No audio data available');
+}
+
+window.toggleAudioPlayback = async function(noteId) {
   const playBtns = document.querySelectorAll(`.play-btn[data-id="${noteId}"]`);
   
   if (activeAudioNoteId === noteId && activeAudio) {
@@ -792,29 +856,40 @@ window.toggleAudioPlayback = function(noteId, audioDataUrl) {
     const prevBtns = document.querySelectorAll(`.play-btn[data-id="${activeAudioNoteId}"]`);
     prevBtns.forEach(btn => btn.textContent = '▶️ PLAY');
   }
-  
-  activeAudio = new Audio(audioDataUrl);
-  activeAudioNoteId = noteId;
-  
-  playBtns.forEach(btn => btn.textContent = '⏹️ STOP');
-  
-  activeAudio.onended = () => {
+
+  playBtns.forEach(btn => btn.textContent = '⏳...');
+
+  try {
+    const note = notes.find(n => String(n.id) === String(noteId));
+    if (!note) return;
+    const { bytes, mimeType } = await getAudioData(note);
+    const blob = new Blob([bytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+
+    activeAudio = new Audio(url);
+    activeAudioNoteId = noteId;
+    
+    playBtns.forEach(btn => btn.textContent = '⏹️ STOP');
+    
+    activeAudio.onended = () => {
+      playBtns.forEach(btn => btn.textContent = '▶️ PLAY');
+      URL.revokeObjectURL(url);
+      activeAudio = null;
+      activeAudioNoteId = null;
+    };
+    
+    await activeAudio.play();
+  } catch(err) {
+    console.error('Audio playback failed:', err);
     playBtns.forEach(btn => btn.textContent = '▶️ PLAY');
     activeAudio = null;
     activeAudioNoteId = null;
-  };
-  
-  activeAudio.play().catch(err => {
-    console.error("Audio playback failed:", err);
-    playBtns.forEach(btn => btn.textContent = '▶️ PLAY');
-    activeAudio = null;
-    activeAudioNoteId = null;
-  });
+  }
 };
 
 window.transcribeNoteAudio = async function(noteId) {
   const note = notes.find(n => String(n.id) === String(noteId));
-  if (!note || !note.audio) return;
+  if (!note || (!note.audio && !note.audioPath)) return;
 
   const cardElement = document.querySelector(`.note-container[data-id="${noteId}"]`) || document.getElementById('note-modal');
   const btn = cardElement ? cardElement.querySelector('.gemini-transcribe-btn') : null;
@@ -825,10 +900,8 @@ window.transcribeNoteAudio = async function(noteId) {
   }
 
   try {
-    const match = note.audio.match(/^data:(audio\/[a-zA-Z0-9\-+.]+);base64,(.+)$/);
-    if (!match) throw new Error("Invalid audio data format");
-    const mimeType = match[1];
-    const base64Data = match[2];
+    const { bytes, mimeType } = await getAudioData(note);
+    const base64Data = btoa(String.fromCharCode(...new Uint8Array(bytes)));
 
     const response = await window.fetchGemini({
       contents: [{
@@ -858,8 +931,8 @@ window.transcribeNoteAudio = async function(noteId) {
       window.openNoteModal(noteId);
     }
   } catch(e) {
-    console.error("Transcription failed:", e);
-    alert("Transcription failed: " + e.message);
+    console.error('Transcription failed:', e);
+    alert('Transcription failed: ' + e.message);
   } finally {
     if (btn) {
       btn.innerHTML = originalHtml;
