@@ -90,6 +90,7 @@ body {
   flex-direction: column;
   position: relative;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  padding-bottom: 34px; /* Safe zone for absolute-positioned settings button */
 }
 
 
