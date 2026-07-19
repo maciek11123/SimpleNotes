@@ -630,17 +630,17 @@ body {
 }
 
 /* Minimal Layout Overrides */
+:is([data-theme^="minimal-"]) .app-container {
+  border: 3px solid var(--surface-border) !important;
+}
+
 :is([data-theme^="minimal-"]) .note-container {
-  border-left: none !important;
-  border-right: none !important;
-  border-top: none !important;
-  border-bottom: 1px solid var(--surface-border) !important;
-  background-color: transparent !important;
+  border: 3px solid var(--surface-border) !important;
+  background-color: var(--surface) !important;
 }
 
 :is([data-theme^="minimal-"]) .note-card {
   background-color: transparent !important;
-  padding: 16px 0 !important;
   box-shadow: none !important;
 }
 
@@ -649,13 +649,9 @@ body {
 }
 
 :is([data-theme^="minimal-"]) .notes-creator {
-  border-left: none !important;
-  border-right: none !important;
-  border-top: none !important;
-  border-bottom: 1px solid var(--surface-border) !important;
-  background-color: transparent !important;
-  padding: 10px 0 !important;
-  margin: 8px 0 0 !important;
+  border: 3px solid var(--surface-border) !important;
+  background-color: var(--surface) !important;
+  margin: 8px 8px 0 !important;
 }
 
 :is([data-theme^="minimal-"]) .notes-creator .finput {
@@ -668,7 +664,7 @@ body {
 :is([data-theme^="minimal-"]) .btn-terminal,
 :is([data-theme^="minimal-"]) .btn-auth {
   background: transparent !important;
-  border: 1px solid var(--surface-border) !important;
+  border: 3px solid var(--surface-border) !important;
   color: var(--text) !important;
 }
 
@@ -682,18 +678,18 @@ body {
 :is([data-theme^="minimal-"]) .btn-terminal.primary {
   background: var(--accent) !important;
   color: var(--bg) !important;
-  border-color: var(--accent) !important;
+  border: 3px solid var(--accent) !important;
 }
 
 :is([data-theme^="minimal-"]) .btn-terminal.primary:hover {
   background: transparent !important;
   color: var(--text) !important;
-  border-color: var(--surface-border) !important;
+  border: 3px solid var(--surface-border) !important;
 }
 
 :is([data-theme^="minimal-"]) .modal-content {
   background: var(--bg) !important;
-  border: 1px solid var(--surface-border) !important;
+  border: 3px solid var(--surface-border) !important;
 }
 
 :is([data-theme^="minimal-"]) .auth-bar,
@@ -702,7 +698,13 @@ body {
   border-left: none !important;
   border-right: none !important;
   border-bottom: none !important;
-  border-top: 1px solid var(--surface-border) !important;
+  border-top: 3px solid var(--surface-border) !important;
+}
+
+:is([data-theme^="minimal-"]) #theme-select {
+  border: 3px solid var(--surface-border) !important;
+  background: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 :is([data-theme^="minimal-"]) .note-title-text {
