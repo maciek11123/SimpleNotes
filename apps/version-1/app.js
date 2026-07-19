@@ -1,4 +1,3 @@
-import { routeNote } from '../../shared/src/api/router.js';
 import { toggleRecording } from '../../shared/src/api/audio.js';
 import { makeSwipeable } from '../../shared/src/interactions.js';
 import { auth, onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from '../../shared/js/firebase.js';
@@ -341,12 +340,6 @@ function renderNotes() {
       <div class="note-card">
         <div class="note-card-header">
           <div class="note-title-text">${displayTitle}</div>
-          <span class="gemini-sparkle-trigger" onclick="event.stopPropagation(); window.triggerAiRoute('${note.id}')" title="Click to trigger Gemini AI processing">
-            <svg class="gemini-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10.5 21a1.5 1.5 0 0 1-1.5-1.5C9 14.5 5.5 11 0.5 11a1.5 1.5 0 0 1 0-3C5.5 8 9 4.5 9 0.5a1.5 1.5 0 0 1 3 0C12 4.5 15.5 8 20.5 8a1.5 1.5 0 0 1 0 3C15.5 11 12 14.5 12 19.5a1.5 1.5 0 0 1-1.5 1.5Z"/>
-              <path d="M19 8a1 1 0 0 1-1-1c0-2-1.5-3.5-3.5-3.5a1 1 0 0 1 0-2C16.5 1.5 18 0 18 0a1 1 0 0 1 2 0c0 2 1.5 3.5 3.5 3.5a1 1 0 0 1 0 2C21.5 5.5 20 7 20 7a1 1 0 0 1-1 1Z"/>
-            </svg>
-          </span>
         </div>
         <div class="note-body-wrapper">${noteContentHtml}</div>
         <div class="note-meta">> ${note.date}</div>
@@ -445,49 +438,7 @@ function addListInputRow(checked = false, text = '') {
   if(!text) row.querySelector('.list-item-val').focus();
 }
 
-function convertTextToList(text) {
-  if (typeof text !== 'string') return [];
-  return text.split('\n')
-    .map(line => line.replace(/^[-*•\s\d.)[\]xX]+/, '').trim())
-    .filter(line => line.length > 0)
-    .map(itemText => ({ text: itemText, checked: false }));
-}
 
-window.triggerAiRoute = async function(id) {
-  const note = notes.find(n => String(n.id) === String(id));
-  if (!note) return;
-
-  // Set loading status in V3 UI
-  note.intent = 'ROUTING...';
-  note.status = '⚙ Analyzing...';
-  note.insight = 'AI is routing your memo...';
-  renderNotes();
-
-  const fullText = `Title: ${note.title || ''}\nContent: ${Array.isArray(note.body) ? note.body.map(i => i.text).join('\n') : (note.body || '')}`;
-
-  try {
-    const result = await routeNote(fullText);
-    note.intent = result.type;
-    note.status = result.status;
-    note.insight = result.insight;
-
-    // Convert note text to list if classified as SHOPPING or TASKS and it isn't already a list
-    if ((result.type === 'SHOPPING' || result.type === 'TASKS') && !note.isList) {
-      note.isList = true;
-      note.body = convertTextToList(note.body);
-    }
-
-    saveNotes();
-    saveNoteToCloud(note);
-  } catch(e) {
-    console.error("Manual routing failed:", e);
-    note.intent = 'NOTES';
-    note.status = '[📝 Fallback Note]';
-    note.insight = 'Fallback standard archivist active.';
-    saveNotes();
-    saveNoteToCloud(note);
-  }
-};
 
 let editingNoteId = null;
 
@@ -531,9 +482,6 @@ async function handleSaveNote() {
       notes[index].title = title || 'UNTITLED NOTE';
       notes[index].body = noteItems;
       notes[index].isList = isListMode;
-      notes[index].intent = 'ROUTING...';
-      notes[index].status = '⚙ Analyzing...';
-      notes[index].insight = 'AI is routing your memo...';
       notes[index].date = dateStr;
       saveNoteToCloud(notes[index]); // FIX: sync edited note immediately
     }
@@ -547,9 +495,9 @@ async function handleSaveNote() {
       title: title || 'UNTITLED NOTE',
       body: noteItems,
       isList: isListMode,
-      intent: 'ROUTING...',
-      status: '⚙ Analyzing...',
-      insight: 'AI is routing your memo...',
+      intent: 'NOTES',
+      status: '',
+      insight: '',
       date: dateStr
     };
     notes.unshift(newNote);
@@ -563,36 +511,6 @@ async function handleSaveNote() {
   document.getElementById("note-body").value = "";
   document.getElementById("list-items-container").innerHTML = "";
   if (isListMode) addListInputRow();
-
-// Perform background API call
-  try {
-    const result = await routeNote(fullText);
-    const index = notes.findIndex(n => String(n.id) === String(targetId));
-    if (index > -1) {
-    notes[index].intent = result.type;
-    notes[index].status = result.status;
-    notes[index].insight = result.insight;
-
-    // Convert note text to list if classified as SHOPPING or TASKS and it isn't already a list
-    if ((result.type === 'SHOPPING' || result.type === 'TASKS') && !notes[index].isList) {
-      notes[index].isList = true;
-      notes[index].body = convertTextToList(notes[index].body);
-    }
-
-    saveNotes();
-    saveNoteToCloud(notes[index]);
-  }
-} catch(e) {
-  console.error("Routing error:", e);
-  const index = notes.findIndex(n => String(n.id) === String(targetId));
-  if (index > -1) {
-    notes[index].intent = 'NOTES';
-    notes[index].status = '[📝 Fallback Note]';
-    notes[index].insight = 'Fallback standard archivist active.';
-    saveNotes();
-    saveNoteToCloud(notes[index]); // FIX: still sync even when Gemini routing fails
-  }
-}
 }
 
 // Audio Recording Callback

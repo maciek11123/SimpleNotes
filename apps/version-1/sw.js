@@ -9,12 +9,7 @@ self.addEventListener('install', e => {
       '../../shared/js/firebase.js',
       './app.js',
       '../../shared/src/interactions.js',
-      '../../shared/src/api/router.js',
       '../../shared/src/api/audio.js',
-      '../../shared/src/parsers/shopping.js',
-      '../../shared/src/parsers/games.js',
-      '../../shared/src/parsers/tasks.js',
-      '../../shared/src/parsers/notes.js',
       './manifest.json',
       './icon-192.png',
       './icon-512.png'
