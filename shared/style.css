@@ -486,7 +486,10 @@ body {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  margin-top: 24px;
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
 }
 
 #auth-status {
