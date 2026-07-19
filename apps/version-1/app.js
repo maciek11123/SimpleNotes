@@ -43,29 +43,7 @@ window.rotateGeminiKey = function() {
 
 
 
-window.resetApp = async function() {
-  if (confirm("This will clear all local storage, unregister the service worker, and reload. Continue?")) {
-    if ('serviceWorker' in navigator) {
-      try {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for (let reg of regs) {
-          await reg.unregister();
-        }
-      } catch (e) { console.error("SW unregister failed:", e); }
-    }
-    if (window.caches) {
-      try {
-        const keys = await caches.keys();
-        for (let key of keys) {
-          await caches.delete(key);
-        }
-      } catch (e) { console.error("Caches clear failed:", e); }
-    }
-    localStorage.clear();
-    sessionStorage.clear();
-    window.location.reload(true);
-  }
-};
+
 
 window.fetchGemini = async function(body) {
   let attempts = 0;
