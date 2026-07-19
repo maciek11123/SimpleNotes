@@ -431,6 +431,7 @@ body {
   outline: none;
   white-space: pre-wrap;
   min-height: 120px;
+  flex: 1;
   resize: vertical;
   overflow: auto;
 }
@@ -536,6 +537,29 @@ body {
 .pagination-actions {
   display: flex;
   gap: 8px;
+}
+
+#settings-toggle-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 999;
+  opacity: 0.5;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-dim);
+  transition: opacity 0.2s ease;
+}
+#settings-toggle-btn:hover {
+  opacity: 1;
+}
+
+#modal-note-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 

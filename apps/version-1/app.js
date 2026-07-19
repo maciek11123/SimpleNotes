@@ -99,7 +99,7 @@ let unsubscribeNotesSync = null;
 
 let showAllNotes = false;
 let currentPage = 0;
-const NOTES_PER_PAGE = 10;
+const NOTES_PER_PAGE = 2;
 let showArchivedOnly = false;
 
 window.nextPage = function() {
@@ -666,6 +666,17 @@ window.updateNoteBodyFromModal = function(newText) {
 
 window.toggleInputMode = toggleInputMode;
 window.addListInputRow = addListInputRow;
+
+window.toggleSettings = function() {
+  const authBar = document.querySelector(".auth-bar");
+  if (authBar) {
+    authBar.classList.toggle("hidden");
+    const settingsBtn = document.getElementById("settings-toggle-btn");
+    if (settingsBtn) {
+      settingsBtn.style.opacity = authBar.classList.contains("hidden") ? "0.5" : "1";
+    }
+  }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
   const micBtn = document.getElementById('mic-btn');

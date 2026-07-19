@@ -46,7 +46,7 @@
     </div>
 
     <!-- Auth Status Bar -->
-    <div class="auth-bar">
+    <div class="auth-bar hidden">
       <span id="auth-status">> OFFLINE MODE</span>
 
       <div style="display: flex; gap: 4px; align-items: center;">
@@ -55,6 +55,8 @@
       </div>
     </div>
 
+    <!-- Discrete Settings Button -->
+    <button id="settings-toggle-btn" onclick="window.toggleSettings()" title="Settings">⚙️</button>
   </div>
 
   <!-- Expandable Note Modal Overlay -->
