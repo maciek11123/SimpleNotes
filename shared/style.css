@@ -631,7 +631,8 @@ body {
 
 /* Minimal Layout Overrides */
 :is([data-theme^="minimal-"]) .app-container {
-  border: 3px solid var(--surface-border) !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 :is([data-theme^="minimal-"]) .note-container {
