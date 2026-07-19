@@ -470,7 +470,7 @@ body {
 
 /* Condensed Card style in feed to allow expanding */
 .notes-feed .note-card {
-  max-height: 140px;
+  height: 100%;
   overflow: hidden;
   position: relative;
   cursor: pointer;
