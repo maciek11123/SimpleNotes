@@ -551,8 +551,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.05em;
   margin-top: auto;
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 100;
 }
 
@@ -696,7 +695,7 @@ body {
 
 :is([data-theme^="minimal-"]) .auth-bar,
 :is([data-theme^="minimal-"]) .pagination-bar {
-  background-color: transparent !important;
+  background-color: var(--bg) !important;
   border-left: none !important;
   border-right: none !important;
   border-bottom: none !important;
