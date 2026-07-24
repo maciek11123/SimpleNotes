@@ -430,28 +430,25 @@ async function processRecording(blob) {
   const bodyEl = $('note-input');
 
   try {
-    if (mode === 'text' || mode === 'audio+text') {
-      const transcription = await transcribeAudio(blob);
-      if (transcription) {
-        const existing = bodyEl.textContent.trim();
-        bodyEl.textContent = existing ? existing + '\n' + transcription : transcription;
-      }
-    }
-
-    if (mode === 'audio+text' || mode === 'audio') {
-      state.currentAudioBlob = await blobToArrayBuffer(blob);
-      showAudioPreview(blob);
+    const transcription = await transcribeAudio(blob);
+    if (transcription) {
+      const existing = bodyEl.innerHTML.trim();
+      bodyEl.innerHTML = existing ? existing + '<br><br>' + transcription : transcription;
+      // Transcription succeeded, discard the audio player
+      state.currentAudioBlob = null;
+      hideAudioPreview();
+      state.recordingState = 'idle';
+      updateRecordingUI();
+      autoSaveDraftNote();
+      return;
     }
   } catch (e) {
     console.error('[Transcription] Failed:', e);
-    // Fallback: keep audio
-    state.currentAudioBlob = await blobToArrayBuffer(blob);
-    showAudioPreview(blob);
-    const existing = bodyEl.textContent.trim();
-    bodyEl.textContent = existing
-      ? existing + '\n[voice note attached]'
-      : '[voice note attached]';
   }
+
+  // Fallback: keep audio if transcription failed or was empty
+  state.currentAudioBlob = await blobToArrayBuffer(blob);
+  showAudioPreview(blob);
 
   state.recordingState = 'idle';
   updateRecordingUI();
@@ -891,14 +888,62 @@ function buildNoteCard(note) {
   // ── Audio player
   if (note.audioBlob || note.audioUrl) {
     let src = '';
+    let blobRef = null;
     if (note.audioBlob) {
-      const blob = new Blob([note.audioBlob], { type: 'audio/webm' });
-      src = URL.createObjectURL(blob);
+      blobRef = new Blob([note.audioBlob], { type: 'audio/webm' });
+      src = URL.createObjectURL(blobRef);
     } else if (note.audioUrl) {
       src = note.audioUrl;
     }
     if (src) {
       const player = createMinimalAudioPlayer(src);
+      
+      const aiBtn = document.createElement('button');
+      aiBtn.className = 'ml-4 text-paper-dim hover:text-paper-text dark:text-ink-dim dark:hover:text-ink-text transition-colors shrink-0';
+      aiBtn.title = 'Convert to text with Gemini';
+      aiBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.3 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>`;
+      
+      aiBtn.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        aiBtn.classList.add('animate-pulse');
+        try {
+          if (!blobRef && note.audioUrl) {
+            blobRef = await fetch(note.audioUrl).then(r => r.blob());
+          }
+          const text = await transcribeAudio(blobRef);
+          if (text) {
+             const existing = (note.content || '').replace(/<[^>]*>/g, '\n').trim();
+             // Clean up old fallback text if it exists
+             let cleanedExisting = existing;
+             if (cleanedExisting === '[voice note attached]') cleanedExisting = '';
+             else cleanedExisting = cleanedExisting.replace('\n[voice note attached]', '');
+             
+             note.content = cleanedExisting ? cleanedExisting + '<br><br>' + text : text;
+             note.audioBlob = null;
+             note.audioUrl = null;
+             note.synced = false;
+             note.updatedAt = new Date().toISOString();
+             await dbSaveNote(note);
+             
+             if (note.id === state.activeDraftId) {
+                const bodyEl = $('note-input');
+                if (bodyEl) bodyEl.innerHTML = note.content;
+                hideAudioPreview();
+             }
+             renderNotes();
+             if (state.user) {
+               syncLocalToFirestore();
+             }
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          aiBtn.classList.remove('animate-pulse');
+        }
+      };
+      
+      player.appendChild(aiBtn);
       card.appendChild(player);
     }
   }
