@@ -165,7 +165,6 @@ function handleAuthChange(user) {
     renderNotes();
   }
 }
-}
 
 function updateAuthUI() {
   const btn = $('auth-btn');
@@ -231,32 +230,7 @@ async function handleFirestoreUpdate(remoteNotes) {
   renderNotes();
 }
 
-async function syncLocalToFirestore() {
-  if (!state.user) return;
 
-  const unsynced = state.notes.filter((n) => !n.synced);
-
-  for (const note of unsynced) {
-    try {
-      // Upload audio to Storage if present
-      if (note.audioBlob && !note.audioUrl) {
-        const url = await uploadAudioToStorage(state.user.uid, note.id, note.audioBlob);
-        note.audioUrl = url;
-      }
-
-      // Sync note document (strip audioBlob — too large for Firestore)
-      const { audioBlob, _syncTimeout, ...data } = note;
-      await syncNoteToFirestore(state.user.uid, data);
-      note.synced = true;
-      await saveNoteToCloud(note);
-    } catch (e) {
-      console.warn('[Sync] Failed for note', note.id, e);
-    }
-  }
-
-  state.syncStatus = 'synced';
-  updateSyncUI();
-}
 
 // ─── NOTE CRUD ───────────────────────────────────────────────────────────
 
@@ -1135,15 +1109,10 @@ function setupEventListeners() {
 
   // Online / offline
   window.addEventListener('online', () => {
-    if (state.user) {
-      state.syncStatus = 'syncing';
-      updateSyncUI();
-      syncLocalToFirestore();
-    }
+    // We are cloud only. When online, reconnect to firestore if needed.
   });
   window.addEventListener('offline', () => {
-    state.syncStatus = 'local';
-    updateSyncUI();
+    // Could show offline banner
   });
 }
 
