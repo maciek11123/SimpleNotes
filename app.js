@@ -160,6 +160,18 @@ function handleAuthChange(user) {
 
   if (user) {
     listenToFirestore(user.uid, handleFirestoreUpdate);
+    
+    // Process any unsynced local notes
+    try {
+      const q = JSON.parse(localStorage.getItem('unsyncedNotes') || '[]');
+      q.forEach(note => {
+        if (!state.notes.find(n => n.id === note.id)) {
+          state.notes.push(note);
+        }
+        saveNoteToCloud(note);
+      });
+    } catch(e) {}
+    
   } else {
     state.notes = [];
     renderNotes();
@@ -195,8 +207,27 @@ async function handleAuth() {
 
 // --- SYNC ----------------------------------------------------------------
 
+function markNoteUnsynced(note) {
+  try {
+    const q = JSON.parse(localStorage.getItem('unsyncedNotes') || '[]');
+    const existing = q.findIndex(n => n.id === note.id);
+    if (existing >= 0) q[existing] = note;
+    else q.push(note);
+    localStorage.setItem('unsyncedNotes', JSON.stringify(q));
+  } catch(e){}
+}
+
+function markNoteSynced(noteId) {
+  try {
+    let q = JSON.parse(localStorage.getItem('unsyncedNotes') || '[]');
+    q = q.filter(n => n.id !== noteId);
+    localStorage.setItem('unsyncedNotes', JSON.stringify(q));
+  } catch(e){}
+}
+
 async function saveNoteToCloud(note) {
   if (!state.user) return;
+  markNoteUnsynced(note);
   try {
     if (note.audioBlob && !note.audioUrl) {
       const url = await uploadAudioToStorage(state.user.uid, note.id, note.audioBlob);
@@ -205,6 +236,7 @@ async function saveNoteToCloud(note) {
     }
     const { audioBlob, _syncTimeout, ...data } = note;
     await syncNoteToFirestore(state.user.uid, data);
+    markNoteSynced(note.id);
   } catch(e) {
     console.error(e);
   }
@@ -284,6 +316,12 @@ function autoSaveDraftNote() {
       note.synced = false;
       updateCardDOM(note);
     }
+  }
+
+  // Guarantee offline persistence before debounce
+  if (state.activeDraftId) {
+    const note = state.notes.find(n => n.id === state.activeDraftId);
+    if (note) markNoteUnsynced(note);
   }
 
   // Debounce DB & Cloud sync
