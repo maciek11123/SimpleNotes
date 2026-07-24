@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SimpleNotes</title>
+  <meta name="description" content="ADHD-friendly, offline-first notes with voice recording and AI transcription">
+  <meta name="theme-color" content="#EAE5D9">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SimpleNotes">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Force SW reset on layout update -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let reg of registrations) {
+          reg.unregister();
+        }
+      });
+      if (window.caches) {
+        caches.keys().then(names => {
+          for (let name of names) caches.delete(name);
+        });
+      }
+    }
+  </script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            paper: {
+              bg:     '#EAE5D9',
+              text:   '#1A1918',
+              card:   '#F0EDE7',
+              border: '#D5D0C8',
+              dim:    '#8C887E',
+            },
+            ink: {
+              bg:     '#1C1B1A',
+              text:   '#EAE5D9',
+              card:   '#262422',
+              border: '#3B3835',
+              dim:    '#75736E',
+            },
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    [contenteditable]:empty:before {
+      content: attr(placeholder);
+      color: #8C887E;
+      opacity: 0.5;
+      pointer-events: none;
+      display: block;
+    }
+    .dark [contenteditable]:empty:before { color: #75736E; opacity: 0.45; }
+    [contenteditable]:focus { outline: none; }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D5D0C8; border-radius: 2px; }
+    .dark ::-webkit-scrollbar-thumb { background: #3B3835; }
+
+    .sn-checkbox {
+      -webkit-appearance: none;
+      appearance: none;
+      border: 1.5px solid #D5D0C8;
+      border-radius: 2px;
+      background: transparent;
+      transition: all 150ms ease;
+      position: relative;
+    }
+    .dark .sn-checkbox { border-color: #3B3835; }
+    .sn-checkbox:checked { background: #1A1918; border-color: #1A1918; }
+    .dark .sn-checkbox:checked { background: #EAE5D9; border-color: #EAE5D9; }
+    .sn-checkbox:checked::after {
+      content: '';
+      position: absolute;
+      left: 3px; top: 0px;
+      width: 5px; height: 9px;
+      border: solid #EAE5D9;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+    .dark .sn-checkbox:checked::after { border-color: #1C1B1A; }
+
+    @keyframes rec-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .recording-pulse { animation: rec-pulse 1.2s ease-in-out infinite; }
+
+    ::selection { background: #1A1918; color: #EAE5D9; }
+    .dark ::selection { background: #EAE5D9; color: #1C1B1A; }
+
+    audio { filter: grayscale(1); opacity: 0.7; }
+    audio:hover { opacity: 1; }
+  </style>
+</head>
+
+<body class="bg-paper-bg dark:bg-ink-bg text-paper-text dark:text-ink-text min-h-screen transition-colors duration-200 selection:bg-paper-text selection:text-paper-bg dark:selection:bg-ink-text dark:selection:text-ink-bg">
+
+  <!-- APP CONTAINER -->
+  <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl mx-auto px-6 py-12 flex flex-col min-h-screen pb-44">
+
+    <!-- HEADER — REC top-right -->
+    <header class="flex justify-between items-center mb-12">
+      <div></div>
+      <button
+        id="mic-btn"
+        class="text-[10px] md:text-xs font-bold tracking-widest uppercase flex items-center gap-1.5 text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
+        aria-label="Record voice note"
+      >
+        <span id="mic-dot" class="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-paper-text dark:bg-ink-text"></span>
+        <span id="mic-text">REC</span>
+      </button>
+    </header>
+
+    <!-- NOTE CREATION -->
+    <main class="flex-1 flex flex-col gap-12">
+      <section class="flex flex-col gap-3">
+        <div class="flex flex-col gap-1">
+          <div
+            id="note-title-input"
+            contenteditable="true"
+            placeholder="Title"
+            class="w-full text-xl md:text-2xl font-bold min-h-[1.5rem] outline-none"
+          ></div>
+          <div
+            id="note-input"
+            contenteditable="true"
+            placeholder="Write or record..."
+            class="w-full text-lg md:text-xl font-medium min-h-[1.5rem] leading-normal outline-none"
+          ></div>
+        </div>
+        <!-- Audio preview (hidden until recording) -->
+        <div id="audio-preview" class="hidden"></div>
+      </section>
+
+      <!-- NOTES FEED -->
+      <section id="notes-list" class="flex flex-col gap-8 md:gap-10">
+        <!-- Dynamically rendered by app.js -->
+      </section>
+    </main>
+  </div>
+
+  <!-- FIXED BOTTOM BAR WITH FADE OVERLAY -->
+  <div class="fixed bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-paper-bg via-paper-bg/95 to-transparent dark:from-ink-bg dark:via-ink-bg/95 pointer-events-none z-40"></div>
+
+  <div class="fixed inset-0 pointer-events-none z-50 flex flex-col items-center">
+    <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl h-full relative px-6">
+
+      <!-- Bottom-left: SIMPLENOTES -->
+      <div class="absolute bottom-6 left-6 md:bottom-12 pointer-events-auto">
+        <span class="text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-paper-dim dark:text-ink-dim select-none">
+          SimpleNotes
+        </span>
+      </div>
+
+      <!-- Bottom-right: SIGN IN · LOCAL · DARK -->
+      <div class="absolute bottom-6 right-6 md:bottom-12 pointer-events-auto flex items-center gap-4">
+        <button
+          id="auth-btn"
+          class="text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
+        >SIGN IN</button>
+        <div class="flex items-center gap-1.5 text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim select-none">
+          <span id="sync-dot" class="w-1.5 h-1.5 rounded-full bg-paper-dim dark:bg-ink-dim"></span>
+          <span id="sync-label">LOCAL</span>
+        </div>
+        <button
+          id="theme-toggle"
+          class="text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
+        >
+          <span class="dark:hidden">DARK</span><span class="hidden dark:inline">LIGHT</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- REMINDER MODAL -->
+  <div
+    id="reminder-modal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center bg-paper-text/20 dark:bg-ink-bg/50 backdrop-blur-sm"
+  >
+    <div class="modal-card bg-paper-card dark:bg-ink-card border border-paper-border dark:border-ink-border p-6 w-full max-w-xs flex flex-col gap-5">
+      <h2 class="text-xs font-bold tracking-[0.25em] uppercase">Set Reminder</h2>
+
+      <input
+        id="reminder-datetime"
+        type="datetime-local"
+        class="w-full bg-transparent border border-paper-border dark:border-ink-border px-3 py-2 text-sm font-medium outline-none focus:border-paper-text dark:focus:border-ink-text transition-colors"
+      >
+
+      <div class="flex items-center gap-4 text-[10px] font-bold tracking-widest uppercase">
+        <button id="reminder-save" class="text-paper-text dark:text-ink-text hover:opacity-70 transition-opacity">SET</button>
+        <button id="reminder-clear" class="text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors">CLEAR</button>
+        <button id="reminder-cancel" class="text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors ml-auto">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
