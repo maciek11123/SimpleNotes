@@ -503,7 +503,19 @@ function createMinimalAudioPlayer(src) {
     }
   }
 
-  audio.addEventListener('loadedmetadata', updateProgress);
+  audio.addEventListener('loadedmetadata', () => {
+    if (audio.duration === Infinity || isNaN(audio.duration)) {
+      // Chrome WebM duration workaround
+      audio.currentTime = 1e101;
+      audio.ontimeupdate = function () {
+        this.ontimeupdate = () => updateProgress();
+        audio.currentTime = 0;
+      };
+    } else {
+      updateProgress();
+    }
+  });
+  
   audio.addEventListener('durationchange', updateProgress);
   audio.addEventListener('timeupdate', updateProgress);
 
@@ -938,6 +950,7 @@ function buildNoteCard(note) {
           }
         } catch (err) {
           console.error(err);
+          alert('Transcription failed: ' + (err.message || 'Unknown error. Check console.'));
         } finally {
           aiBtn.classList.remove('animate-pulse');
         }
