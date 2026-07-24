@@ -26,6 +26,8 @@ const state = {
   audioMode: 'audio+text', // 'text' | 'audio+text' | 'audio'
   currentAudioBlob: null,
   activeDraftId: null,
+  fontSize: parseInt(localStorage.getItem('sn-font-size')) || 16,
+  fontFamily: localStorage.getItem('sn-font-family') || 'Inter',
 };
 
 // ─── DOM REFS ────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ const $ = (id) => document.getElementById(id);
 
 async function init() {
   applyTheme();
+  applyTypography();
 
   const firebaseOk = initFirebase();
 
@@ -72,6 +75,59 @@ function toggleTheme() {
   state.theme = state.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem('sn-theme', state.theme);
   applyTheme();
+}
+
+// ─── TYPOGRAPHY ──────────────────────────────────────────────────────────
+
+function applyTypography() {
+  document.documentElement.style.setProperty('--base-size', `${state.fontSize}px`);
+  document.documentElement.style.setProperty('--font-family', `"${state.fontFamily}"`);
+  
+  const slider = $('font-size-slider');
+  const display = $('font-size-display');
+  if (slider) slider.value = state.fontSize;
+  if (display) display.textContent = `${state.fontSize}px`;
+
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    if (btn.dataset.font === state.fontFamily) {
+      btn.classList.add('bg-paper-text', 'text-paper-bg', 'dark:bg-ink-text', 'dark:text-ink-bg');
+    } else {
+      btn.classList.remove('bg-paper-text', 'text-paper-bg', 'dark:bg-ink-text', 'dark:text-ink-bg');
+    }
+  });
+}
+
+function updateFontSize(e) {
+  state.fontSize = e.target.value;
+  localStorage.setItem('sn-font-size', state.fontSize);
+  applyTypography();
+}
+
+function updateFontFamily(font) {
+  state.fontFamily = font;
+  localStorage.setItem('sn-font-family', state.fontFamily);
+  applyTypography();
+}
+
+// ─── MENU ─────────────────────────────────────────────────────────────────
+
+function toggleMenu() {
+  const modal = $('menu-modal');
+  if (!modal) return;
+  const isHidden = modal.classList.contains('hidden');
+  
+  if (isHidden) {
+    modal.classList.remove('hidden');
+    // slight delay to allow display block to apply before animating transform
+    setTimeout(() => {
+      modal.querySelector('.modal-card')?.classList.remove('translate-y-full');
+    }, 10);
+  } else {
+    modal.querySelector('.modal-card')?.classList.add('translate-y-full');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 300); // match transition duration
+  }
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────
@@ -974,6 +1030,21 @@ function setupEventListeners() {
   });
 
 
+
+  // Menu & Settings
+  $('menu-toggle-btn')?.addEventListener('click', toggleMenu);
+  $('menu-close-btn')?.addEventListener('click', toggleMenu);
+  $('menu-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'menu-modal') toggleMenu();
+  });
+
+  $('font-size-slider')?.addEventListener('input', updateFontSize);
+  
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      updateFontFamily(e.target.dataset.font);
+    });
+  });
 
   // Reminder modal
   $('reminder-save')?.addEventListener('click', saveReminder);

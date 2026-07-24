@@ -36,7 +36,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&family=Outfit:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 
   <!-- Tailwind Config -->
   <script>
@@ -45,7 +45,7 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            sans: ['var(--font-family, Inter)', 'system-ui', '-apple-system', 'sans-serif'],
           },
           colors: {
             paper: {
@@ -70,7 +70,8 @@
 
   <style>
     body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: var(--font-family, 'Inter'), system-ui, -apple-system, sans-serif;
+      font-size: var(--base-size, 16px);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -124,6 +125,31 @@
 
     audio { filter: grayscale(1); opacity: 0.7; }
     audio:hover { opacity: 1; }
+
+    /* Custom range slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: #1A1918;
+      cursor: pointer;
+      margin-top: -6px;
+    }
+    .dark input[type=range]::-webkit-slider-thumb { background: #EAE5D9; }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      background: #D5D0C8;
+      border-radius: 2px;
+    }
+    .dark input[type=range]::-webkit-slider-runnable-track { background: #3B3835; }
   </style>
 </head>
 
@@ -179,31 +205,77 @@
   <div class="fixed inset-0 pointer-events-none z-50 flex flex-col items-center">
     <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl h-full relative px-6">
 
-      <!-- Bottom-left: SIMPLENOTES -->
-      <div class="absolute bottom-6 left-6 md:bottom-12 pointer-events-auto">
-        <span class="text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-paper-dim dark:text-ink-dim select-none">
-          SimpleNotes
-        </span>
-      </div>
-
-      <!-- Bottom-right: SIGN IN · LOCAL · DARK -->
-      <div class="absolute bottom-6 right-6 md:bottom-12 pointer-events-auto flex items-center gap-4">
+      <!-- Centered Menu Button: SIMPLENOTES -->
+      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 md:bottom-12 pointer-events-auto">
         <button
-          id="auth-btn"
-          class="text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
-        >SIGN IN</button>
-        <div class="flex items-center gap-1.5 text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim select-none">
-          <span id="sync-dot" class="w-1.5 h-1.5 rounded-full bg-paper-dim dark:bg-ink-dim"></span>
-          <span id="sync-label">LOCAL</span>
-        </div>
-        <button
-          id="theme-toggle"
-          class="text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
+          id="menu-toggle-btn"
+          class="text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors select-none outline-none"
         >
-          <span class="dark:hidden">DARK</span><span class="hidden dark:inline">LIGHT</span>
+          SimpleNotes
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- MENU MODAL -->
+  <div
+    id="menu-modal"
+    class="hidden fixed inset-0 z-50 flex items-end md:items-center justify-center bg-paper-text/20 dark:bg-ink-bg/50 backdrop-blur-sm p-4 md:p-0"
+  >
+    <div class="modal-card bg-paper-card dark:bg-ink-card border border-paper-border dark:border-ink-border p-6 w-full max-w-sm flex flex-col gap-8 shadow-2xl rounded-t-2xl md:rounded-2xl transition-transform transform translate-y-full md:translate-y-0">
+      
+      <div class="flex justify-between items-center">
+        <h2 class="text-xs font-bold tracking-[0.25em] uppercase">Settings</h2>
+        <button id="menu-close-btn" class="text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text">✕</button>
+      </div>
+
+      <!-- General Settings -->
+      <div class="flex flex-col gap-4">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim">Account</span>
+          <button id="auth-btn" class="text-xs font-bold tracking-widest uppercase hover:opacity-70 transition-opacity">SIGN IN</button>
+        </div>
+        
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim">Sync</span>
+          <div class="flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase select-none">
+            <span id="sync-dot" class="w-1.5 h-1.5 rounded-full bg-paper-dim dark:bg-ink-dim"></span>
+            <span id="sync-label">LOCAL</span>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim">Theme</span>
+          <button id="theme-toggle" class="text-xs font-bold tracking-widest uppercase hover:opacity-70 transition-opacity">
+            <span class="dark:hidden">DARK</span><span class="hidden dark:inline">LIGHT</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-paper-border dark:border-ink-border">
+
+      <!-- Typography Settings -->
+      <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-3">
+          <label for="font-size-slider" class="text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim flex justify-between">
+            <span>Size</span>
+            <span id="font-size-display">16px</span>
+          </label>
+          <input type="range" id="font-size-slider" min="12" max="24" step="1" value="16">
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <span class="text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim">Font</span>
+          <div class="grid grid-cols-2 gap-2" id="font-selector">
+            <button data-font="Inter" class="font-btn active-font border border-paper-border dark:border-ink-border py-2 text-xs font-medium rounded hover:bg-paper-border/30 dark:hover:bg-ink-border/30" style="font-family: 'Inter'">Inter</button>
+            <button data-font="Outfit" class="font-btn border border-paper-border dark:border-ink-border py-2 text-xs font-medium rounded hover:bg-paper-border/30 dark:hover:bg-ink-border/30" style="font-family: 'Outfit'">Outfit</button>
+            <button data-font="Space Mono" class="font-btn border border-paper-border dark:border-ink-border py-2 text-xs font-medium rounded hover:bg-paper-border/30 dark:hover:bg-ink-border/30" style="font-family: 'Space Mono'">Space Mono</button>
+            <button data-font="Atkinson Hyperlegible" class="font-btn border border-paper-border dark:border-ink-border py-2 text-[11px] font-medium rounded hover:bg-paper-border/30 dark:hover:bg-ink-border/30" style="font-family: 'Atkinson Hyperlegible'">Hyperlegible</button>
+          </div>
+        </div>
+      </div>
+      
     </div>
   </div>
 
