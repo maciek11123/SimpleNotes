@@ -31,12 +31,13 @@ import {
 // ─── CONFIG (replace with your Firebase project) ─────────────────────────
 
 const firebaseConfig = {
-  apiKey:            'YOUR_FIREBASE_API_KEY',
-  authDomain:        'YOUR_PROJECT.firebaseapp.com',
-  projectId:         'YOUR_PROJECT_ID',
-  storageBucket:     'YOUR_PROJECT.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId:             'YOUR_APP_ID',
+  apiKey:            'AIzaSyDyW2mNr3wOXjVYAPH75igXzKuiPJHVRrU',
+  authDomain:        'simplenote-10e1b.firebaseapp.com',
+  projectId:         'simplenote-10e1b',
+  storageBucket:     'simplenote-10e1b.firebasestorage.app',
+  messagingSenderId: '768830004912',
+  appId:             '1:768830004912:web:3fbd6ec7d9a54e6851a575',
+  measurementId:     'G-LC7SNZ54G0'
 };
 
 let app, auth, firestore, storage, provider;
