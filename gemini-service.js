@@ -4,7 +4,7 @@
 import { GoogleGenAI } from 'https://esm.run/@google/genai';
 
 const API_KEY = 'AQ.Ab8RN6LgtdO' + 'EFA24eB31vrVHmQmY3uPnRs1iuWtySkSzTdppzA';
-const MODEL  = 'gemini-2.5-flash';
+const MODEL  = 'gemini-1.5-flash';
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
