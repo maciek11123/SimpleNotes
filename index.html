@@ -156,7 +156,14 @@
 <body class="overscroll-none bg-paper-bg dark:bg-ink-bg text-paper-text dark:text-ink-text min-h-screen transition-colors duration-200 selection:bg-paper-text selection:text-paper-bg dark:selection:bg-ink-text dark:selection:text-ink-bg">
 
   <!-- APP CONTAINER -->
-  <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl mx-auto px-6 py-6 md:py-12 flex flex-col min-h-screen pb-44">
+  <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl mx-auto px-6 py-6 md:py-12 flex flex-col min-h-screen pb-44 relative">
+    
+    <!-- SIGN IN OVERLAY -->
+    <div id="auth-overlay" class="absolute inset-0 z-30 bg-paper-bg/95 dark:bg-ink-bg/95 backdrop-blur flex flex-col items-center justify-center p-6 text-center hidden">
+      <h2 class="text-xl md:text-2xl font-bold mb-4">Welcome to SimpleNotes</h2>
+      <p class="text-paper-dim dark:text-ink-dim mb-8 font-medium">Please sign in to securely access your cloud notes.</p>
+      <button id="overlay-auth-btn" class="px-6 py-3 border border-paper-border dark:border-ink-border rounded text-xs font-bold tracking-widest uppercase hover:bg-paper-text hover:text-paper-bg dark:hover:bg-ink-text dark:hover:text-ink-bg transition-colors">Sign In with Google</button>
+    </div>
 
     <!-- HEADER — REC top-right -->
     <header class="flex justify-between items-center mb-6 md:mb-12">
@@ -237,13 +244,7 @@
           <button id="auth-btn" class="text-xs font-bold tracking-widest uppercase hover:opacity-70 transition-opacity">SIGN IN</button>
         </div>
         
-        <div class="flex justify-between items-center">
-          <span class="text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim">Sync</span>
-          <div class="flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase select-none">
-            <span id="sync-dot" class="w-1.5 h-1.5 rounded-full bg-paper-dim dark:bg-ink-dim"></span>
-            <span id="sync-label">LOCAL</span>
-          </div>
-        </div>
+        <!-- SYNC indicator removed since we are cloud-only -->
 
         <div class="flex justify-between items-center">
           <span class="text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim">Theme</span>

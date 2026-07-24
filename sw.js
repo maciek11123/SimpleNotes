@@ -1,10 +1,9 @@
 // SimpleNotes Service Worker
-const CACHE_NAME = 'simplenotes-v8';
+const CACHE_NAME = 'simplenotes-v9';
 const APP_SHELL = [
   './',
   './index.html',
   './app.js',
-  './db.js',
   './firebase-config.js',
   './gemini-service.js',
   './manifest.json',

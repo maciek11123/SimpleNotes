@@ -1,7 +1,7 @@
 // ─── SimpleNotes · Main Application ──────────────────────────────────────
 // State management, UI rendering, audio recording, sync orchestration.
 
-import { dbGetAllNotes, dbSaveNote, dbDeleteNote, createNote } from './db.js';
+// No local db imports since we are cloud-only
 import {
   initFirebase,
   signInWithGoogle,
@@ -34,6 +34,27 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+// --- FACTORY -------------------------------------------------------------
+
+export function createNote(overrides = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+    title: '',
+    content: '',
+    isChecklist: false,
+    checklistItems: [],
+    tags: [],
+    audioBlob: null,
+    audioUrl: null,
+    transcription: '',
+    reminder: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
 // ─── INIT ────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -42,12 +63,7 @@ async function init() {
 
   const firebaseOk = initFirebase();
 
-  try {
-    state.notes = await dbGetAllNotes();
-  } catch (e) {
-    console.warn('[Init] IndexedDB read failed:', e);
-    state.notes = [];
-  }
+  state.notes = [];
 
   renderNotes();
   setupEventListeners();
@@ -135,15 +151,20 @@ function toggleMenu() {
 function handleAuthChange(user) {
   state.user = user || null;
   updateAuthUI();
-  if (user) {
-    state.syncStatus = 'syncing';
-    updateSyncUI();
-    listenToFirestore(user.uid, handleFirestoreUpdate);
-    syncLocalToFirestore();
-  } else {
-    state.syncStatus = 'local';
-    updateSyncUI();
+  
+  const overlay = $('auth-overlay');
+  if (overlay) {
+    if (state.user) overlay.classList.add('hidden');
+    else overlay.classList.remove('hidden');
   }
+
+  if (user) {
+    listenToFirestore(user.uid, handleFirestoreUpdate);
+  } else {
+    state.notes = [];
+    renderNotes();
+  }
+}
 }
 
 function updateAuthUI() {
@@ -173,47 +194,41 @@ async function handleAuth() {
 
 // ─── SYNC ────────────────────────────────────────────────────────────────
 
-function updateSyncUI() {
-  const dot = $('sync-dot');
-  const label = $('sync-label');
-  if (!dot || !label) return;
+// --- SYNC ----------------------------------------------------------------
 
-  switch (state.syncStatus) {
-    case 'synced':
-      dot.className = 'w-1.5 h-1.5 rounded-full bg-paper-text dark:bg-ink-text opacity-40';
-      label.textContent = 'SYNCED';
-      break;
-    case 'syncing':
-      dot.className = 'w-1.5 h-1.5 rounded-full bg-paper-text dark:bg-ink-text animate-pulse';
-      label.textContent = 'SYNC';
-      break;
-    default:
-      dot.className = 'w-1.5 h-1.5 rounded-full bg-paper-dim dark:bg-ink-dim';
-      label.textContent = 'LOCAL';
+async function saveNoteToCloud(note) {
+  if (!state.user) return;
+  try {
+    if (note.audioBlob && !note.audioUrl) {
+      const url = await uploadAudioToStorage(state.user.uid, note.id, note.audioBlob);
+      note.audioUrl = url;
+      note.audioBlob = null;
+    }
+    const { audioBlob, _syncTimeout, ...data } = note;
+    await syncNoteToFirestore(state.user.uid, data);
+  } catch(e) {
+    console.error(e);
   }
 }
 
 async function handleFirestoreUpdate(remoteNotes) {
-  let changed = false;
-
+  // Merge remote notes without blowing away local edits
   for (const remote of remoteNotes) {
     const local = state.notes.find((n) => n.id === remote.id);
     if (!local) {
-      await dbSaveNote({ ...remote, synced: true });
-      changed = true;
+      state.notes.push(remote);
     } else if (new Date(remote.updatedAt) > new Date(local.updatedAt)) {
-      await dbSaveNote({ ...remote, audioBlob: local.audioBlob, synced: true });
-      changed = true;
+      Object.assign(local, remote);
     }
   }
-
-  if (changed) {
-    state.notes = await dbGetAllNotes();
-    renderNotes();
-  }
-
-  state.syncStatus = 'synced';
-  updateSyncUI();
+  
+  // Remove deleted notes
+  state.notes = state.notes.filter(n => remoteNotes.find(r => r.id === n.id));
+  
+  // Sort
+  state.notes.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  
+  renderNotes();
 }
 
 async function syncLocalToFirestore() {
@@ -233,7 +248,7 @@ async function syncLocalToFirestore() {
       const { audioBlob, _syncTimeout, ...data } = note;
       await syncNoteToFirestore(state.user.uid, data);
       note.synced = true;
-      await dbSaveNote(note);
+      await saveNoteToCloud(note);
     } catch (e) {
       console.warn('[Sync] Failed for note', note.id, e);
     }
@@ -296,8 +311,8 @@ function autoSaveDraftNote() {
     if (!state.activeDraftId) return;
     const note = state.notes.find((n) => n.id === state.activeDraftId);
     if (note) {
-      await dbSaveNote(note);
-      if (state.user) syncLocalToFirestore();
+      await saveNoteToCloud(note);
+      
     }
   }, 400);
 }
@@ -325,7 +340,7 @@ async function handleDeleteNote(noteId) {
     state.activeDraftId = null;
   }
 
-  await dbDeleteNote(noteId);
+  
   state.notes = state.notes.filter((n) => n.id !== noteId);
 
   if (state.user) {
@@ -360,8 +375,8 @@ function handleNoteEdit(noteId, field, value) {
   // Debounce IndexedDB write
   clearTimeout(_editTimers[noteId]);
   _editTimers[noteId] = setTimeout(async () => {
-    await dbSaveNote(note);
-    if (state.user) syncLocalToFirestore();
+    await saveNoteToCloud(note);
+    
   }, 800);
 }
 
@@ -648,8 +663,8 @@ function toggleChecklist(noteId, btn) {
 
   note.synced = false;
   note.updatedAt = new Date().toISOString();
-  dbSaveNote(note);
-  if (state.user) syncLocalToFirestore();
+  saveNoteToCloud(note);
+  
 }
 
 function renderChecklistDOM(container, note) {
@@ -684,7 +699,7 @@ function renderChecklistDOM(container, note) {
       span.classList.toggle('dark:text-ink-dim', cb.checked);
       note.synced = false;
       note.updatedAt = new Date().toISOString();
-      dbSaveNote(note);
+      saveNoteToCloud(note);
     });
   });
 
@@ -694,7 +709,7 @@ function renderChecklistDOM(container, note) {
       note.checklistItems[idx].text = span.textContent;
       note.synced = false;
       note.updatedAt = new Date().toISOString();
-      dbSaveNote(note);
+      saveNoteToCloud(note);
     });
   });
 }
@@ -745,12 +760,12 @@ async function saveReminder() {
   note.reminder = { datetime: new Date(val).toISOString(), notified: false };
   note.synced = false;
   note.updatedAt = new Date().toISOString();
-  await dbSaveNote(note);
+  await saveNoteToCloud(note);
 
   scheduleReminder(note);
   renderNotes();
   hideReminderModal();
-  if (state.user) syncLocalToFirestore();
+  
 }
 
 async function clearReminder() {
@@ -761,12 +776,12 @@ async function clearReminder() {
   note.reminder = null;
   note.synced = false;
   note.updatedAt = new Date().toISOString();
-  await dbSaveNote(note);
+  await saveNoteToCloud(note);
 
   clearTimeout(_reminderTimers[note.id]);
   renderNotes();
   hideReminderModal();
-  if (state.user) syncLocalToFirestore();
+  
 }
 
 function scheduleActiveReminders() {
@@ -798,7 +813,7 @@ async function triggerNotification(note) {
   if (note.reminder?.notified) return;
 
   note.reminder.notified = true;
-  await dbSaveNote(note);
+  await saveNoteToCloud(note);
 
   const body = note.title || stripHtml(note.content).slice(0, 120) || 'Reminder';
 
@@ -942,7 +957,7 @@ function buildNoteCard(note) {
              note.audioUrl = null;
              note.synced = false;
              note.updatedAt = new Date().toISOString();
-             await dbSaveNote(note);
+             await saveNoteToCloud(note);
              
              if (note.id === state.activeDraftId) {
                 const bodyEl = $('note-input');
@@ -1168,3 +1183,11 @@ function registerServiceWorker() {
 // ─── START ───────────────────────────────────────────────────────────────
 
 init();
+
+const overlayAuthBtn = $('overlay-auth-btn');
+if (overlayAuthBtn) {
+  overlayAuthBtn.addEventListener('click', async () => {
+    await signInWithGoogle();
+  });
+}
+
