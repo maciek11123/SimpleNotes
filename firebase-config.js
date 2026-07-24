@@ -19,6 +19,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  enableMultiTabIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import {
   getStorage,
@@ -50,6 +51,12 @@ export function initFirebase() {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     firestore = getFirestore(app);
+    
+    // Enable durable offline persistence to prevent data loss on reload
+    enableMultiTabIndexedDbPersistence(firestore).catch((err) => {
+      console.warn('[Firestore] Persistence failed:', err.code);
+    });
+    
     storage = getStorage(app);
     provider = new GoogleAuthProvider();
     console.log('[Firebase] Initialized');

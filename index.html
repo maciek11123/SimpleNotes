@@ -150,6 +150,11 @@
       border-radius: 2px;
     }
     .dark input[type=range]::-webkit-slider-runnable-track { background: #3B3835; }
+    
+    html, body {
+      overscroll-behavior-y: none;
+      overscroll-behavior: none;
+    }
   </style>
 </head>
 
@@ -165,17 +170,26 @@
       <button id="overlay-auth-btn" class="px-6 py-3 border border-paper-border dark:border-ink-border rounded text-xs font-bold tracking-widest uppercase hover:bg-paper-text hover:text-paper-bg dark:hover:bg-ink-text dark:hover:text-ink-bg transition-colors">Sign In with Google</button>
     </div>
 
-    <!-- HEADER — REC top-right -->
+    <!-- HEADER — SAVE & REC top-right -->
     <header class="flex justify-between items-center mb-6 md:mb-12">
       <div></div>
-      <button
-        id="mic-btn"
-        class="text-[10px] md:text-xs font-bold tracking-widest uppercase flex items-center gap-1.5 text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
-        aria-label="Record voice note"
-      >
-        <span id="mic-dot" class="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-paper-text dark:bg-ink-text"></span>
-        <span id="mic-text">REC</span>
-      </button>
+      <div class="flex items-center gap-6">
+        <button
+          id="manual-save-btn"
+          class="text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
+          aria-label="Save note"
+        >
+          SAVE
+        </button>
+        <button
+          id="mic-btn"
+          class="text-[10px] md:text-xs font-bold tracking-widest uppercase flex items-center gap-1.5 text-paper-dim dark:text-ink-dim hover:text-paper-text dark:hover:text-ink-text transition-colors"
+          aria-label="Record voice note"
+        >
+          <span id="mic-dot" class="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-paper-text dark:bg-ink-text"></span>
+          <span id="mic-text">REC</span>
+        </button>
+      </div>
     </header>
 
     <!-- NOTE CREATION -->

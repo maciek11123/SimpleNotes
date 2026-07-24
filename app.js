@@ -1059,8 +1059,31 @@ function buildNoteCard(note) {
 
 function setupEventListeners() {
   $('mic-btn')?.addEventListener('click', toggleRecording);
+  $('manual-save-btn')?.addEventListener('click', handleSave);
   $('theme-toggle')?.addEventListener('click', toggleTheme);
   $('auth-btn')?.addEventListener('click', handleAuth);
+
+  // Prevent pull-to-refresh on mobile Safari/PWA
+  document.body.addEventListener('touchmove', (e) => {
+    if (window.scrollY === 0 && e.touches[0].clientY > 0) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  // Flush any pending saves if the user closes the app or switches tabs
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (state.activeDraftId) {
+        const note = state.notes.find(n => n.id === state.activeDraftId);
+        if (note) saveNoteToCloud(note);
+      }
+      Object.keys(_editTimers).forEach(id => {
+        clearTimeout(_editTimers[id]);
+        const note = state.notes.find(n => n.id === id);
+        if (note) saveNoteToCloud(note);
+      });
+    }
+  });
 
   // Auto-save as user types
   $('note-title-input')?.addEventListener('input', autoSaveDraftNote);
