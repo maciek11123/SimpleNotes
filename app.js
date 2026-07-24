@@ -319,6 +319,12 @@ function updateCardDOM(note) {
 }
 
 async function handleDeleteNote(noteId) {
+  clearTimeout(_editTimers[noteId]);
+  if (state.activeDraftId === noteId) {
+    clearTimeout(_autoSaveTimer);
+    state.activeDraftId = null;
+  }
+
   await dbDeleteNote(noteId);
   state.notes = state.notes.filter((n) => n.id !== noteId);
 
