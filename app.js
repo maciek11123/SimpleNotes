@@ -221,8 +221,15 @@ async function handleFirestoreUpdate(remoteNotes) {
     }
   }
   
-  // Remove deleted notes
-  state.notes = state.notes.filter(n => remoteNotes.find(r => r.id === n.id));
+  // Remove deleted notes, but protect active drafts and very recent local notes (pending uploads)
+  const now = Date.now();
+  state.notes = state.notes.filter(n => {
+    if (remoteNotes.find(r => r.id === n.id)) return true;
+    if (n.id === state.activeDraftId) return true;
+    const isRecent = (now - new Date(n.createdAt).getTime()) < 15000;
+    if (isRecent) return true;
+    return false;
+  });
   
   // Sort
   state.notes.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -1118,6 +1125,10 @@ function setupEventListeners() {
 
 function handleSave() {
   if (state.activeDraftId) {
+    const note = state.notes.find(n => n.id === state.activeDraftId);
+    if (note) {
+      saveNoteToCloud(note);
+    }
     state.activeDraftId = null;
     const titleEl = $('note-title-input');
     const bodyEl = $('note-input');
