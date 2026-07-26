@@ -900,13 +900,13 @@ function renderNotes() {
 
 function buildNoteCard(note) {
   const card = document.createElement('div');
-  card.className = 'group flex flex-col gap-2 border-b border-solid border-paper-border dark:border-ink-border pb-3 mb-3 relative';
+  card.className = 'group flex flex-col gap-1 border-b border-solid border-paper-border dark:border-ink-border pb-3 mb-3';
   card.dataset.noteId = note.id;
 
   // ── Content (merged title and content)
   const contentEl = document.createElement('div');
   contentEl.className =
-    'note-content text-lg md:text-xl font-medium leading-normal outline-none pr-24';
+    'note-content text-lg md:text-xl font-medium leading-normal outline-none break-words [overflow-wrap:anywhere]';
 
   let isTruncated = false;
 
@@ -1049,7 +1049,7 @@ function buildNoteCard(note) {
   // ── Actions (visible on hover / focus-within)
   const actions = document.createElement('div');
   actions.className =
-    'absolute right-0 bottom-3 flex items-center gap-4 text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200';
+    'flex items-center justify-end gap-4 text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 mt-1';
 
   const mkBtn = (label, handler) => {
     const b = document.createElement('button');
