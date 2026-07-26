@@ -1204,9 +1204,9 @@ function parseMergedContent(html) {
   
   // Convert block element tags and <br> into newlines for parsing stability
   text = text.replace(/<div[^>]*>/gi, '\n');
-  text = text.replace(/<\/div>/gi, '');
+  text = text.replace(/<\/div>/gi, '\n');
   text = text.replace(/<p[^>]*>/gi, '\n');
-  text = text.replace(/<\/p>/gi, '');
+  text = text.replace(/<\/p>/gi, '\n');
   text = text.replace(/<br\s*\/?>/gi, '\n');
   
   const temp = document.createElement('div');
@@ -1222,18 +1222,37 @@ function parseMergedContent(html) {
   return { title, content };
 }
 
-function autolink(text) {
-  if (!text) return '';
-  const urlRegex = /(https?:\/\/[^\s<]+)/g;
-  return text.replace(urlRegex, (url) => {
-    let cleanUrl = url;
-    let trailing = '';
-    if (/[.,;)]$/.test(cleanUrl)) {
-      trailing = cleanUrl.slice(-1);
-      cleanUrl = cleanUrl.slice(0, -1);
+function autolink(html) {
+  if (!html) return '';
+  
+  // Split by HTML tags to safely autolink text outside existing <a> tags
+  const parts = html.split(/(<[^>]+>)/g);
+  
+  // Matches http(s)://, www., and domain.tld/... paths (e.g. maciek11123.github.io/...)
+  const urlRegex = /((?:https?:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+(?:com|io|org|net|edu|gov|app|dev|me|co|uk|de|ca|site|online|xyz|page)(?:\/[^\s<]*)?)/gi;
+
+  let inA = false;
+  
+  return parts.map(part => {
+    if (!part) return '';
+    if (part.startsWith('<')) {
+      if (/^<a\b/i.test(part)) inA = true;
+      if (/^<\/a>/i.test(part)) inA = false;
+      return part;
     }
-    return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2 opacity-90 hover:opacity-100" style="color: inherit; cursor: pointer;" onclick="event.stopPropagation(); window.open('${cleanUrl}', '_blank');">${cleanUrl}</a>${trailing}`;
-  });
+    if (inA) return part;
+    
+    return part.replace(urlRegex, (match) => {
+      let cleanUrl = match;
+      let trailing = '';
+      if (/[.,;)]$/.test(cleanUrl)) {
+        trailing = cleanUrl.slice(-1);
+        cleanUrl = cleanUrl.slice(0, -1);
+      }
+      const href = /^https?:\/\//i.test(cleanUrl) ? cleanUrl : `https://${cleanUrl}`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2 opacity-90 hover:opacity-100" style="color: inherit; cursor: pointer;" onclick="event.stopPropagation(); window.open('${href}', '_blank');">${cleanUrl}</a>${trailing}`;
+    });
+  }).join('');
 }
 
 function stripHtml(html) {
