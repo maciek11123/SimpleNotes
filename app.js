@@ -84,7 +84,7 @@ async function init() {
 function applyTheme() {
   document.documentElement.classList.toggle('dark', state.theme === 'dark');
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = state.theme === 'dark' ? '#1C1B1A' : '#EAE5D9';
+  if (meta) meta.content = state.theme === 'dark' ? '#121212' : '#EAE5D9';
 }
 
 function toggleTheme() {
@@ -263,8 +263,12 @@ async function handleFirestoreUpdate(remoteNotes) {
     return false;
   });
   
-  // Sort
-  state.notes.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  // Sort by creation time (descending) so note order never changes on edit/click
+  state.notes.sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return timeB - timeA;
+  });
   
   renderNotes();
 }
@@ -278,13 +282,13 @@ async function handleFirestoreUpdate(remoteNotes) {
 let _autoSaveTimer = null;
 
 function autoSaveDraftNote() {
-  const titleEl = $('note-title-input');
   const bodyEl = $('note-input');
-  const title = titleEl ? titleEl.textContent.trim() : '';
-  const content = bodyEl ? bodyEl.innerHTML.trim() : '';
-  const textContent = bodyEl ? bodyEl.textContent.trim() : '';
+  if (!bodyEl) return;
 
-  const hasData = title || textContent || state.currentAudioBlob;
+  const rawHTML = bodyEl.innerHTML.trim();
+  const textContent = bodyEl.textContent.trim();
+
+  const hasData = textContent || state.currentAudioBlob;
 
   if (!hasData) {
     if (state.activeDraftId) {
@@ -294,12 +298,13 @@ function autoSaveDraftNote() {
     return;
   }
 
-  const tags = extractTags(title + ' ' + textContent);
+  const parsed = parseMergedContent(rawHTML);
+  const tags = extractTags(parsed.title + ' ' + textContent);
 
   if (!state.activeDraftId) {
     const note = createNote({
-      title,
-      content,
+      title: parsed.title,
+      content: parsed.content,
       tags,
       audioBlob: state.currentAudioBlob || null,
     });
@@ -309,8 +314,8 @@ function autoSaveDraftNote() {
   } else {
     const note = state.notes.find((n) => n.id === state.activeDraftId);
     if (note) {
-      note.title = title;
-      note.content = content;
+      note.title = parsed.title;
+      note.content = parsed.content;
       note.tags = tags;
       note.updatedAt = new Date().toISOString();
       note.synced = false;
@@ -331,7 +336,6 @@ function autoSaveDraftNote() {
     const note = state.notes.find((n) => n.id === state.activeDraftId);
     if (note) {
       await saveNoteToCloud(note);
-      
     }
   }, 400);
 }
@@ -342,13 +346,11 @@ function updateCardDOM(note) {
     renderNotes();
     return;
   }
-  const titleEl = card.querySelector('.note-title');
-  if (titleEl && titleEl !== document.activeElement) {
-    titleEl.innerHTML = note.title || '';
-  }
   const contentEl = card.querySelector('.note-content');
   if (contentEl && contentEl !== document.activeElement && !note.isChecklist) {
-    contentEl.innerHTML = note.content || '';
+    const titlePart = note.title ? `<div class="font-bold mb-1">${autolink(note.title)}</div>` : '';
+    const bodyPart = note.content ? autolink(note.content) : '';
+    contentEl.innerHTML = titlePart + bodyPart;
   }
 }
 
@@ -377,25 +379,34 @@ async function handleDeleteNote(noteId) {
 // Debounce map for inline edits
 const _editTimers = {};
 
-function handleNoteEdit(noteId, field, value) {
+function handleNoteEdit(noteId, updates) {
   const note = state.notes.find((n) => n.id === noteId);
   if (!note) return;
 
-  note[field] = value;
+  // Check if anything actually changed to prevent sorting/syncing on simple click/blur
+  let changed = false;
+  for (const key in updates) {
+    const val1 = note[key] === undefined || note[key] === null ? '' : String(note[key]).trim();
+    const val2 = updates[key] === undefined || updates[key] === null ? '' : String(updates[key]).trim();
+    if (val1 !== val2) {
+      changed = true;
+      break;
+    }
+  }
+  if (!changed) return;
+
+  Object.assign(note, updates);
   note.synced = false;
   note.updatedAt = new Date().toISOString();
 
-  if (field === 'content') {
-    note.tags = extractTags(
-      (note.title || '') + ' ' + value.replace(/<[^>]*>/g, '')
-    );
-  }
+  note.tags = extractTags(
+    (note.title || '') + ' ' + (note.content || '').replace(/<[^>]*>/g, '')
+  );
 
-  // Debounce IndexedDB write
+  // Debounce DB write / Cloud sync
   clearTimeout(_editTimers[noteId]);
   _editTimers[noteId] = setTimeout(async () => {
     await saveNoteToCloud(note);
-    
   }, 800);
 }
 
@@ -413,9 +424,7 @@ async function toggleRecording() {
   if (state.recordingState === 'idle') {
     // Reset active draft so recording creates a fresh note
     state.activeDraftId = null;
-    const titleEl = $('note-title-input');
     const bodyEl = $('note-input');
-    if (titleEl) titleEl.innerHTML = '';
     if (bodyEl) bodyEl.innerHTML = '';
     state.currentAudioBlob = null;
     hideAudioPreview();
@@ -473,7 +482,7 @@ async function processRecording(blob) {
     const transcription = await transcribeAudio(blob);
     if (transcription) {
       const existing = bodyEl.innerHTML.trim();
-      bodyEl.innerHTML = existing ? existing + '<br><br>' + transcription : transcription;
+      bodyEl.innerHTML = existing ? existing + '<br><br>' + transcription : '<br>' + transcription;
       // Transcription succeeded, discard the audio player
       state.currentAudioBlob = null;
       hideAudioPreview();
@@ -701,7 +710,7 @@ function renderChecklistDOM(container, note) {
           data-idx="${idx}"
           class="sn-checkbox mt-1.5 w-4 h-4 shrink-0 cursor-pointer">
         <span class="${struck} outline-none w-full cursor-text transition-all duration-200"
-          contenteditable="true">${item.text}</span>
+          contenteditable="true">${autolink(item.text)}</span>
       </label>`;
   });
   html += '</div>';
@@ -891,25 +900,13 @@ function renderNotes() {
 
 function buildNoteCard(note) {
   const card = document.createElement('div');
-  card.className = 'group flex flex-col gap-2';
+  card.className = 'group flex flex-col gap-2 border-b border-solid border-paper-border dark:border-ink-border pb-3 mb-3 relative';
   card.dataset.noteId = note.id;
 
-  // ── Title
-  const titleEl = document.createElement('div');
-  titleEl.contentEditable = 'true';
-  titleEl.className =
-    'note-title text-xl md:text-2xl font-bold outline-none cursor-text';
-  titleEl.setAttribute('placeholder', 'Title');
-  titleEl.innerHTML = note.title || '';
-  titleEl.addEventListener('blur', () =>
-    handleNoteEdit(note.id, 'title', titleEl.innerHTML)
-  );
-  card.appendChild(titleEl);
-
-  // ── Content
+  // ── Content (merged title and content)
   const contentEl = document.createElement('div');
   contentEl.className =
-    'note-content text-lg md:text-xl font-medium leading-normal outline-none';
+    'note-content text-lg md:text-xl font-medium leading-normal outline-none pr-24';
 
   let isTruncated = false;
 
@@ -918,14 +915,18 @@ function buildNoteCard(note) {
   } else {
     contentEl.contentEditable = 'true';
     contentEl.classList.add('cursor-text');
-    contentEl.innerHTML = note.content || '';
-    contentEl.addEventListener('blur', () =>
-      handleNoteEdit(note.id, 'content', contentEl.innerHTML)
-    );
+    const titlePart = note.title ? `<div class="font-bold mb-1">${autolink(note.title)}</div>` : '';
+    const bodyPart = note.content ? autolink(note.content) : '';
+    contentEl.innerHTML = titlePart + bodyPart;
+    contentEl.addEventListener('blur', () => {
+      const parsed = parseMergedContent(contentEl.innerHTML);
+      handleNoteEdit(note.id, parsed);
+    });
 
     // Limit text displayed to 3 lines
-    const rawLines = (note.content || '').replace(/<[^>]*>/g, '\n').split('\n').filter((l) => l.trim());
-    if (rawLines.length > 3 || (note.content || '').length > 150) {
+    const rawText = contentEl.textContent || '';
+    const rawLines = rawText.split('\n').filter((l) => l.trim());
+    if (rawLines.length > 3 || rawText.length > 150) {
       contentEl.classList.add('line-clamp-3');
       isTruncated = true;
     }
@@ -1048,7 +1049,7 @@ function buildNoteCard(note) {
   // ── Actions (visible on hover / focus-within)
   const actions = document.createElement('div');
   actions.className =
-    'flex items-center gap-4 text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200';
+    'absolute right-0 bottom-3 flex items-center gap-4 text-[10px] md:text-xs font-bold tracking-widest uppercase text-paper-dim dark:text-ink-dim opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200';
 
   const mkBtn = (label, handler) => {
     const b = document.createElement('button');
@@ -1124,7 +1125,6 @@ function setupEventListeners() {
   });
 
   // Auto-save as user types
-  $('note-title-input')?.addEventListener('input', autoSaveDraftNote);
   $('note-input')?.addEventListener('input', autoSaveDraftNote);
 
   // Ctrl+Enter to save from creation bar
@@ -1137,14 +1137,12 @@ function setupEventListeners() {
 
   // Save when clicking outside the creation area
   document.addEventListener('click', (e) => {
-    const isCreation = e.target.closest('#note-title-input') || 
-                       e.target.closest('#note-input') || 
+    const isCreation = e.target.closest('#note-input') || 
                        e.target.closest('#audio-preview') || 
                        e.target.closest('#mic-btn');
     if (!isCreation && state.activeDraftId) {
-      const title = $('note-title-input')?.textContent.trim();
       const content = $('note-input')?.textContent.trim();
-      if (title || content || state.currentAudioBlob) {
+      if (content || state.currentAudioBlob) {
         handleSave();
       }
     }
@@ -1191,9 +1189,7 @@ function handleSave() {
       saveNoteToCloud(note);
     }
     state.activeDraftId = null;
-    const titleEl = $('note-title-input');
     const bodyEl = $('note-input');
-    if (titleEl) titleEl.innerHTML = '';
     if (bodyEl) bodyEl.innerHTML = '';
     hideAudioPreview();
     state.currentAudioBlob = null;
@@ -1202,6 +1198,43 @@ function handleSave() {
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────
+
+function parseMergedContent(html) {
+  let text = html || '';
+  
+  // Convert block element tags and <br> into newlines for parsing stability
+  text = text.replace(/<div[^>]*>/gi, '\n');
+  text = text.replace(/<\/div>/gi, '');
+  text = text.replace(/<p[^>]*>/gi, '\n');
+  text = text.replace(/<\/p>/gi, '');
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+  
+  const temp = document.createElement('div');
+  temp.innerHTML = text;
+  const cleanText = temp.textContent || temp.innerText || '';
+  
+  const lines = cleanText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  
+  const title = lines[0] || '';
+  const restLines = lines.slice(1);
+  const content = restLines.map((line, idx) => idx === 0 ? line : `<div>${line}</div>`).join('');
+  
+  return { title, content };
+}
+
+function autolink(text) {
+  if (!text) return '';
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
+  return text.replace(urlRegex, (url) => {
+    let cleanUrl = url;
+    let trailing = '';
+    if (/[.,;)]$/.test(cleanUrl)) {
+      trailing = cleanUrl.slice(-1);
+      cleanUrl = cleanUrl.slice(0, -1);
+    }
+    return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2 opacity-90 hover:opacity-100" style="color: inherit; cursor: pointer;" onclick="event.stopPropagation(); window.open('${cleanUrl}', '_blank');">${cleanUrl}</a>${trailing}`;
+  });
+}
 
 function stripHtml(html) {
   const div = document.createElement('div');
